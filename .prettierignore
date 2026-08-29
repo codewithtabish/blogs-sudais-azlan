@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Next.js generated files
+.next/
+out/
+
+# Build output
+dist/
+build/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Vercel
+.vercel/
+
+# Turborepo
+.turbo/
+
+# Cache
+.cache/
+.swc/
+.eslintcache/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Generated files
+*.min.js
+*.map
+*.tsbuildinfo
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Public assets
+public/
+
+# Logs
+*.log
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
