@@ -14,7 +14,7 @@ export function HomeHero() {
     >
       <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">INSIDER</span>
 
-      <h1 className="font-serif text-3xl font-semibold leading-tight text-foreground sm:text-4xl md:text-5xl">
+      <h1 className="font-serif text-3xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-4xl md:text-5xl">
         Technology, ideas, and the world taking shape around them.
       </h1>
 

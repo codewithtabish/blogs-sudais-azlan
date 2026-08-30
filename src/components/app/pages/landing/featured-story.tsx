@@ -29,7 +29,7 @@ export function FeaturedStory({ blog }: { blog: HomeBlogListItem }) {
           />
         </Link>
 
-        <div className="col-span-1 flex flex-col justify-center gap-4 lg:col-span-2">
+        <div className="col-span-1 flex flex-col justify-center gap-5 lg:col-span-2">
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/${blog.category.slug}`}
@@ -42,13 +42,13 @@ export function FeaturedStory({ blog }: { blog: HomeBlogListItem }) {
 
           <Link
             href={href}
-            className="font-serif text-3xl font-semibold leading-tight text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-4xl"
+            className="font-serif text-3xl font-semibold leading-[1.15] tracking-tight text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-4xl"
           >
             {blog.title}
           </Link>
 
           {blog.shortDescription && (
-            <p className="line-clamp-3 text-base leading-relaxed text-muted-foreground">
+            <p className="line-clamp-3 max-w-prose text-base leading-relaxed text-muted-foreground">
               {blog.shortDescription}
             </p>
           )}
