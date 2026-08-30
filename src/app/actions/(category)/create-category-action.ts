@@ -191,11 +191,13 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
     revalidateTag(CACHE_TAGS.categories, "max");
 
-    revalidatePath("/dashboard/items/create-category");
+    if (isActive) {
+      // This also clears a cached "not found" category-page lookup for
+      // the newly created public slug.
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
+    }
 
-    revalidatePath("/dashboard");
-
-    revalidatePath("/categories");
+    revalidatePath("/dashboard/category");
 
     // ========================================================
     // 9. INDEXNOW

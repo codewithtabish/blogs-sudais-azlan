@@ -88,6 +88,9 @@ export async function deleteCategoryAction(categoryId: string): Promise<DeleteCa
       select: {
         id: true,
         slug: true,
+        subcategories: {
+          select: { slug: true },
+        },
       },
     });
 
@@ -144,7 +147,6 @@ export async function deleteCategoryAction(categoryId: string): Promise<DeleteCa
 
     revalidatePath("/dashboard/category");
     revalidatePath("/dashboard/editors");
-    revalidatePath("/dashboard");
 
     // ========================================================
     // 7. REVALIDATE PUBLIC CATEGORY PAGE
@@ -169,6 +171,10 @@ export async function deleteCategoryAction(categoryId: string): Promise<DeleteCa
     // ========================================================
 
     revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
+
+    for (const subcategory of category.subcategories) {
+      revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategory.slug), "max");
+    }
 
     // ========================================================
     // 9. NOTIFY INDEXNOW

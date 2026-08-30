@@ -1,7 +1,9 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { revalidateTag } from "next/cache";
 
+import { CACHE_TAGS } from "@/lib/cache-keys";
 import prisma from "@/lib/prisma-client";
 import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
@@ -108,6 +110,8 @@ export async function getOrCreateArticleUser() {
       isVerified: false,
     },
   });
+
+  revalidateTag(CACHE_TAGS.users, "max");
 
   // ==========================================================
   // 7. Logging

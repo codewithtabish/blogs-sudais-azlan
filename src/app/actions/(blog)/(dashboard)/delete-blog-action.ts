@@ -65,6 +65,7 @@ export async function deleteBlogAction(blogId: string): Promise<DeleteBlogResult
       select: {
         id: true,
         slug: true,
+        status: true,
 
         category: {
           select: {
@@ -121,43 +122,27 @@ export async function deleteBlogAction(blogId: string): Promise<DeleteBlogResult
     // 6. PATH REVALIDATION
     // ========================================================
 
-    // Homepage
-    revalidatePath("/");
-
     // Dashboard blog list
     revalidatePath("/dashboard/blogs");
-
-    // Individual blog
-    revalidatePath(blogPath);
-
-    // Category page
-    revalidatePath(`/${categorySlug}`);
-
-    // Subcategory page
-    revalidatePath(`/${categorySlug}/${subcategorySlug}`);
 
     // ========================================================
     // 7. CACHE TAG REVALIDATION
     // ========================================================
 
-    // HOME
-    revalidateTag(CACHE_TAGS.home, "max");
-    revalidateTag(CACHE_TAGS.homeScreen, "max");
+    if (blog.status === "PUBLISHED") {
+      revalidatePath("/");
+      revalidatePath(blogPath);
+      revalidatePath(`/${categorySlug}`);
+      revalidatePath(`/${categorySlug}/${subcategorySlug}`);
 
-    // CATEGORY
-    revalidateTag(CACHE_TAGS.categoryPageBlogs(categorySlug), "max");
-
-    // SUBCATEGORY
-    revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategorySlug), "max");
-
-    // INDIVIDUAL BLOG
-    revalidateTag(CACHE_TAGS.blog(blogSlug), "max");
+      revalidateTag(CACHE_TAGS.home, "max");
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(categorySlug), "max");
+      revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategorySlug), "max");
+      revalidateTag(CACHE_TAGS.blog(blogSlug), "max");
+    }
 
     // COMMENTS
     revalidateTag(CACHE_TAGS.comments(blog.id), "max");
-
-    // DASHBOARD
-    revalidateTag(CACHE_TAGS.dashboardBlogs, "max");
 
     // ========================================================
     // 8. NOTIFY INDEXNOW

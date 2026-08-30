@@ -9,15 +9,12 @@ export function SecondContainer({ children, className, ...props }: ContainerProp
   return (
     <div
       className={cn(
-        // Hidden on mobile/small screens.
-        // Visible from md (768px) and above.
-        "hidden md:block",
-
         // Layout
         "relative isolate mx-auto min-h-screen w-full max-w-360",
 
-        // Responsive horizontal padding
-        "px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10",
+        // No horizontal padding on mobile.
+        // Responsive padding from small screens upward.
+        "px-0 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10",
 
         // Background
         "bg-background",

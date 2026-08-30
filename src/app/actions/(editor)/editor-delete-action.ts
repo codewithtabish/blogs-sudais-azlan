@@ -39,6 +39,7 @@ export async function deleteEditorAction(editorId: string): Promise<DeleteEditor
       },
       select: {
         id: true,
+        categories: { select: { slug: true } },
       },
     });
 
@@ -78,6 +79,10 @@ export async function deleteEditorAction(editorId: string): Promise<DeleteEditor
     // Categories changed because their editor assignment
     // may now be NULL.
     revalidateTag(CACHE_TAGS.categories, "max");
+
+    for (const category of editor.categories) {
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
+    }
 
     // Dashboard pages.
     revalidatePath("/dashboard/editors");

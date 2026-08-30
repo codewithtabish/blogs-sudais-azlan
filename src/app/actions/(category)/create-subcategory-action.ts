@@ -3,8 +3,9 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
+import { CACHE_TAGS } from "@/lib/cache-keys";
 import prisma from "@/lib/prisma-client";
 import { pingIndexNow } from "@/lib/index-now";
 import { subcategorySchema } from "@/schemas/subcategory-schema";
@@ -122,6 +123,23 @@ export async function createSubcategoryAction(formData: unknown): Promise<Create
         sortOrder,
       },
     });
+
+    // The category tree always includes every subcategory. Category and
+    // subcategory page readers include active subcategory navigation too.
+    revalidateTag(CACHE_TAGS.categories, "max");
+
+    if (isActive && parentCategory.isActive) {
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(parentCategory.slug), "max");
+
+      const siblingSubcategories = await prisma.subcategory.findMany({
+        where: { categoryId, isActive: true },
+        select: { slug: true },
+      });
+
+      for (const sibling of siblingSubcategories) {
+        revalidateTag(CACHE_TAGS.subcategoryPageBlogs(sibling.slug), "max");
+      }
+    }
 
     // ========================================================
     // REVALIDATE DASHBOARD

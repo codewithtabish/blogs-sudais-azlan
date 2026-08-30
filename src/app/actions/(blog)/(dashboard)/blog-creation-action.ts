@@ -455,8 +455,6 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
 
       revalidateTag(CACHE_TAGS.home, "max");
 
-      revalidateTag(CACHE_TAGS.homeScreen, "max");
-
       // ------------------------------------------------------
       // CATEGORY PAGE
       // ------------------------------------------------------

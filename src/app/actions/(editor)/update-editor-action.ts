@@ -54,7 +54,11 @@ export async function updateEditorAction(
   try {
     const existing = await prisma.editor.findUnique({
       where: { id: editorId },
-      select: { id: true, email: true },
+      select: {
+        id: true,
+        email: true,
+        categories: { select: { slug: true } },
+      },
     });
 
     if (!existing) {
@@ -79,6 +83,11 @@ export async function updateEditorAction(
         };
       }
     }
+
+    const newlyAssignedCategories = await prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { slug: true },
+    });
 
     // Atomic update + category re-assignment
     // Category.editorId is one-to-many (onDelete: SetNull)
@@ -119,6 +128,13 @@ export async function updateEditorAction(
 
     revalidateTag(CACHE_TAGS.editors, "max");
     revalidateTag(CACHE_TAGS.categories, "max");
+
+    for (const slug of new Set([
+      ...existing.categories.map((category) => category.slug),
+      ...newlyAssignedCategories.map((category) => category.slug),
+    ])) {
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(slug), "max");
+    }
 
     revalidatePath("/dashboard/editors");
     revalidatePath(`/dashboard/editors/${editorId}/edit`);

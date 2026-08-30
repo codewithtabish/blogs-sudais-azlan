@@ -1,11 +1,9 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { NewsletterStatus } from "@/generated/prisma/enums";
 
-import { CACHE_TAGS } from "@/lib/cache-keys";
 import { sendWelcomeEmail } from "@/lib/resend-emai";
 import prisma from "@/lib/prisma-client";
 
@@ -145,10 +143,6 @@ export async function subscribeNewsletterAction(email: string): Promise<Subscrib
           subscribedAt: updatedSubscriber.subscribedAt,
         });
 
-        revalidateTag(CACHE_TAGS.newsletterSubscribers, "max");
-
-        revalidatePath("/dashboard/newsletter");
-
         /**
          * --------------------------------------------------------
          * SEND WELCOME EMAIL
@@ -210,10 +204,6 @@ export async function subscribeNewsletterAction(email: string): Promise<Subscrib
       status: newSubscriber.status,
       subscribedAt: newSubscriber.subscribedAt,
     });
-
-    revalidateTag(CACHE_TAGS.newsletterSubscribers, "max");
-
-    revalidatePath("/dashboard/newsletter");
 
     /**
      * ============================================================

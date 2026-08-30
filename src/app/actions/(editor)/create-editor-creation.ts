@@ -54,6 +54,11 @@ export async function createEditorAction(values: EditorFormValues): Promise<Crea
   const { categoryIds, ...editorData } = parsed.data;
 
   try {
+    const assignedCategories = await prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { slug: true },
+    });
+
     // -------------------------------------------------------
     // 2. Ensure the email isn't already taken
     // -------------------------------------------------------
@@ -110,6 +115,10 @@ export async function createEditorAction(values: EditorFormValues): Promise<Crea
 
     revalidateTag(CACHE_TAGS.categories, "max");
     revalidateTag(CACHE_TAGS.editors, "max");
+
+    for (const category of assignedCategories) {
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
+    }
 
     return { success: true, editorId: editor.id };
   } catch (err) {

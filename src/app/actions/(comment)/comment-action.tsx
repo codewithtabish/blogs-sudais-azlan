@@ -135,6 +135,16 @@ export async function createCommentAction(input: {
 
     const email = clerkUser.emailAddresses?.[0]?.emailAddress || `${userId}@clerk.user`;
 
+    const existingUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        email: true,
+        firstName: true,
+        lastName: true,
+        imageUrl: true,
+      },
+    });
+
     const dbUser = await prisma.user.upsert({
       where: { clerkId: userId },
       update: {
@@ -152,6 +162,37 @@ export async function createCommentAction(input: {
         imageUrl: clerkUser.imageUrl,
       },
     });
+
+    if (
+      !existingUser ||
+      existingUser.email !== email ||
+      existingUser.firstName !== clerkUser.firstName ||
+      existingUser.lastName !== clerkUser.lastName ||
+      existingUser.imageUrl !== clerkUser.imageUrl
+    ) {
+      revalidateTag(CACHE_TAGS.users, "max");
+
+      // Cached public blog readers render author profile fields. Refresh
+      // only the cached entries for this user's published articles.
+      const authoredBlogs = await prisma.blog.findMany({
+        where: { authorId: dbUser.id, status: "PUBLISHED" },
+        select: {
+          slug: true,
+          category: { select: { slug: true } },
+          subcategory: { select: { slug: true } },
+        },
+      });
+
+      if (authoredBlogs.length > 0) {
+        revalidateTag(CACHE_TAGS.home, "max");
+
+        for (const authoredBlog of authoredBlogs) {
+          revalidateTag(CACHE_TAGS.blog(authoredBlog.slug), "max");
+          revalidateTag(CACHE_TAGS.categoryPageBlogs(authoredBlog.category.slug), "max");
+          revalidateTag(CACHE_TAGS.subcategoryPageBlogs(authoredBlog.subcategory.slug), "max");
+        }
+      }
+    }
 
     const blog = await prisma.blog.findFirst({
       where: {

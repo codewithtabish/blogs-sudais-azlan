@@ -95,6 +95,10 @@ export async function deleteSubcategoryAction(
             select: {
               id: true,
               slug: true,
+              subcategories: {
+                where: { isActive: true },
+                select: { slug: true },
+              },
             },
           },
         },
@@ -141,7 +145,6 @@ export async function deleteSubcategoryAction(
       revalidateTag(CACHE_TAGS.categories, "max");
 
       revalidatePath("/dashboard/category");
-      revalidatePath("/dashboard");
 
       // ======================================================
       // 7. REVALIDATE PUBLIC SUBCATEGORY PAGE
@@ -167,6 +170,12 @@ export async function deleteSubcategoryAction(
       // ======================================================
 
       revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategory.slug), "max");
+
+      // Each sibling page includes the parent category's active
+      // subcategory navigation, so all of them depend on this deletion.
+      for (const sibling of subcategory.category.subcategories) {
+        revalidateTag(CACHE_TAGS.subcategoryPageBlogs(sibling.slug), "max");
+      }
 
       // ======================================================
       // 10. REVALIDATE CATEGORY CACHE

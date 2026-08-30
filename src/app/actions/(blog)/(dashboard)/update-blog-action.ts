@@ -599,47 +599,50 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
 
     revalidatePath("/dashboard/blogs");
 
-    revalidateTag(CACHE_TAGS.dashboardBlogs, "max");
-
     // ========================================================
     // 16. HOMEPAGE CACHE
     // ========================================================
 
-    revalidatePath("/");
+    const wasPublished = existingBlog.status === "PUBLISHED";
+    const affectsPublicCaches = wasPublished || isPublished;
 
-    revalidateTag(CACHE_TAGS.home, "max");
-
-    revalidateTag(CACHE_TAGS.homeScreen, "max");
+    if (affectsPublicCaches) {
+      revalidatePath("/");
+      revalidateTag(CACHE_TAGS.home, "max");
+    }
 
     // ========================================================
     // 17. CURRENT CATEGORY CACHE
     // ========================================================
 
-    revalidatePath(`/${categorySlug}`);
-
-    revalidateTag(CACHE_TAGS.categoryPageBlogs(categorySlug), "max");
+    if (affectsPublicCaches) {
+      revalidatePath(`/${categorySlug}`);
+      revalidateTag(CACHE_TAGS.categoryPageBlogs(categorySlug), "max");
+    }
 
     // ========================================================
     // 18. CURRENT SUBCATEGORY CACHE
     // ========================================================
 
-    revalidatePath(`/${categorySlug}/${subcategorySlug}`);
-
-    revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategorySlug), "max");
+    if (affectsPublicCaches) {
+      revalidatePath(`/${categorySlug}/${subcategorySlug}`);
+      revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategorySlug), "max");
+    }
 
     // ========================================================
     // 19. CURRENT BLOG CACHE
     // ========================================================
 
-    revalidatePath(newBlogPath);
-
-    revalidateTag(CACHE_TAGS.blog(blog.slug), "max");
+    if (affectsPublicCaches) {
+      revalidatePath(newBlogPath);
+      revalidateTag(CACHE_TAGS.blog(blog.slug), "max");
+    }
 
     // ========================================================
     // 20. OLD URL / CACHE
     // ========================================================
 
-    if (blogUrlChanged) {
+    if (blogUrlChanged && wasPublished) {
       // IMPORTANT:
       // revalidatePath() receives a relative path,
       // NOT the full https:// URL.
@@ -653,7 +656,7 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
     // 21. OLD CATEGORY CACHE
     // ========================================================
 
-    if (existingBlog.categoryId !== data.categoryId) {
+    if (existingBlog.categoryId !== data.categoryId && wasPublished) {
       revalidateTag(CACHE_TAGS.categoryPageBlogs(existingBlog.category.slug), "max");
 
       revalidatePath(`/${existingBlog.category.slug}`);
@@ -663,7 +666,7 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
     // 22. OLD SUBCATEGORY CACHE
     // ========================================================
 
-    if (existingBlog.subcategoryId !== data.subcategoryId) {
+    if (existingBlog.subcategoryId !== data.subcategoryId && wasPublished) {
       revalidateTag(CACHE_TAGS.subcategoryPageBlogs(existingBlog.subcategory.slug), "max");
 
       revalidatePath(`/${existingBlog.category.slug}/${existingBlog.subcategory.slug}`);
@@ -672,8 +675,6 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
     // ========================================================
     // 23. COMMENTS CACHE
     // ========================================================
-
-    revalidateTag(CACHE_TAGS.comments(blog.id), "max");
 
     // ========================================================
     // 24. INDEXNOW
