@@ -1,0 +1,10 @@
+<svg width="256" height="256" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- INSIDER mark — keyhole silhouette (dark ink, for light backgrounds) -->
+  <g fill="none">
+    <!-- keyhole body -->
+    <circle cx="32" cy="25" r="12" fill="#191919"/>
+    <path d="M25.5 31 L38.5 31 L34.8 45 C34.4 46.5 29.6 46.5 29.2 45 Z" fill="#191919"/>
+    <!-- accent dot -->
+    <circle cx="32" cy="25" r="4.2" fill="#B5192F"/>
+  </g>
+</svg>

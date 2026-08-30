@@ -15,8 +15,7 @@ import { Show, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-// import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import { ModeToggle } from "../theme/mode-toggle";
 
 const navigationData = [
   {
@@ -150,6 +149,7 @@ export default function Navbar() {
               </UserButton>
             </Show>
           </div>
+          <ModeToggle />
 
           {/* Theme Toggle */}
 

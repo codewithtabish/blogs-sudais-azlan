@@ -1,22 +1,31 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
+
 import prisma from "@/lib/prisma-client";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 /**
  * Gets the currently authenticated Clerk user and makes sure
- * a corresponding User record exists in the Articles database.
+ * a corresponding User record exists in the INSIDER database.
  *
  * IMPORTANT:
- * - Clerk remains the authentication/source-of-truth system.
- * - This User table is only the Articles app's local user record.
+ *
+ * - Clerk is the authentication/source-of-truth system.
+ * - The INSIDER User table is only the local application user record.
+ * - ADMIN_EMAILS is the admin allow-list.
+ * - If the user's primary email exists in ADMIN_EMAILS,
+ *   the local user is created with role "ADMIN".
+ * - Otherwise the local user is created with role "USER".
  * - Safe to call multiple times because clerkId is unique.
- * - Existing users are returned without creating duplicates.
+ *
+ * INSIDER production URL:
+ * https://insider.sudaisazlan.com
  */
 export async function getOrCreateArticleUser() {
-  // ----------------------------------------------------------
+  // ==========================================================
   // 1. Get authenticated Clerk user ID
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const { userId } = await auth();
 
@@ -24,9 +33,9 @@ export async function getOrCreateArticleUser() {
     throw new Error("Unauthorized");
   }
 
-  // ----------------------------------------------------------
-  // 2. Check whether this Clerk user already exists
-  // ----------------------------------------------------------
+  // ==========================================================
+  // 2. Check whether this Clerk user already exists locally
+  // ==========================================================
 
   const existingUser = await prisma.user.findUnique({
     where: {
@@ -38,10 +47,11 @@ export async function getOrCreateArticleUser() {
     return existingUser;
   }
 
-  // ----------------------------------------------------------
-  // 3. User doesn't exist in Articles DB yet.
-  //    Get their information directly from Clerk.
-  // ----------------------------------------------------------
+  // ==========================================================
+  // 3. User does not exist in INSIDER DB yet.
+  //
+  // Get the authenticated user directly from Clerk.
+  // ==========================================================
 
   const clerkUser = await currentUser();
 
@@ -49,9 +59,9 @@ export async function getOrCreateArticleUser() {
     throw new Error("Clerk user not found");
   }
 
-  // ----------------------------------------------------------
-  // 4. Get primary email
-  // ----------------------------------------------------------
+  // ==========================================================
+  // 4. Get primary email from Clerk
+  // ==========================================================
 
   const primaryEmail =
     clerkUser.emailAddresses.find((email) => email.id === clerkUser.primaryEmailAddressId)
@@ -59,9 +69,25 @@ export async function getOrCreateArticleUser() {
     clerkUser.emailAddresses[0]?.emailAddress ??
     null;
 
-  // ----------------------------------------------------------
-  // 5. Create local Articles User
-  // ----------------------------------------------------------
+  // ==========================================================
+  // 5. Determine local role from ADMIN_EMAILS
+  //
+  // ADMIN_EMAILS comes from .env:
+  //
+  // ADMIN_EMAILS=kashisultan099@gmail.com,tabish@codewithtabish.com,sudaisazlan09@gmail.com
+  //
+  // Comparison is case-insensitive.
+  // ==========================================================
+
+  const normalizedEmail = primaryEmail?.trim().toLowerCase() ?? "";
+
+  const isAdmin = normalizedEmail.length > 0 && ADMIN_EMAILS.includes(normalizedEmail);
+
+  const role = isAdmin ? "ADMIN" : "USER";
+
+  // ==========================================================
+  // 6. Create local INSIDER user
+  // ==========================================================
 
   const newUser = await prisma.user.create({
     data: {
@@ -75,13 +101,22 @@ export async function getOrCreateArticleUser() {
 
       imageUrl: clerkUser.imageUrl,
 
-      role: "USER",
+      role,
 
       isActive: true,
 
       isVerified: false,
     },
   });
+
+  // ==========================================================
+  // 7. Logging
+  // ==========================================================
+
+  console.log("[INSIDER] Local user created.");
+  console.log("[INSIDER] Clerk ID:", clerkUser.id);
+  console.log("[INSIDER] Email:", normalizedEmail);
+  console.log("[INSIDER] Role:", role);
 
   return newUser;
 }
