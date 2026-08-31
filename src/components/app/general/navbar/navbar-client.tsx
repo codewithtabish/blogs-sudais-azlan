@@ -97,7 +97,7 @@ export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
                       labelIcon={<LayoutDashboard className="h-4 w-4" />}
                     />
                     <UserButton.Link
-                      label="ADMIN AGENT"
+                      label="AGENT"
                       href="/agent"
                       labelIcon={<WashingMachineIcon className="h-4 w-4" />}
                     />

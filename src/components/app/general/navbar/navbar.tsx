@@ -6,6 +6,7 @@ import {
 } from "@/app/actions/(category)/get-all-categories-action";
 import { checkIsAdminAction } from "@/app/actions/admin/check-is-admin-action";
 import { useUser } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NavbarClient } from "./navbar-client";
 
@@ -18,13 +19,25 @@ function toPublicCategories(categories: CategoryListItem[]): CategoryListItem[] 
     }));
 }
 
+function isAgentRoute(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return pathname === "/agent" || pathname.startsWith("/agent/");
+}
+
 export function Navbar() {
   const { user } = useUser();
+  const pathname = usePathname();
 
   const [categories, setCategories] = useState<CategoryListItem[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const hideNavbar = isAgentRoute(pathname);
+
   useEffect(() => {
+    if (hideNavbar) {
+      return;
+    }
+
     let mounted = true;
 
     async function loadNavbarData() {
@@ -60,7 +73,11 @@ export function Navbar() {
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [user, hideNavbar]);
+
+  if (hideNavbar) {
+    return null;
+  }
 
   return <NavbarClient categories={categories} isAdmin={isAdmin} />;
 }
