@@ -16,6 +16,9 @@ import { createEditorAction } from "@/app/actions/(editor)/create-editor-creatio
 import { uploadEditorProfileImageAction } from "../(images)/upload-editor-profile-image-action";
 import { deleteEditorAction } from "../(editor)/editor-delete-action";
 
+import { INSIDER_THEMES, InsiderThemeName } from "@/lib/theme";
+import { applyThemeAction } from "../theme/apply-theme-action";
+
 // ============================================================
 // TYPES
 // ============================================================
@@ -66,6 +69,11 @@ IMAGES:
 
 11. Upload an editor profile image
 
+THEMES:
+
+12. List available themes (and show the current theme)
+13. Apply a theme
+
 The database and real server actions are always the source of truth.
 
 ==================================================
@@ -97,6 +105,7 @@ Never invent:
 - git pushes
 - deployments
 - sort orders
+- theme names that do not exist in INSIDER_THEMES
 
 Never claim an operation succeeded unless the real server action successfully completed.
 
@@ -637,6 +646,53 @@ Resolve the editor using real database information.
 Never invent an editor ID.
 
 ==================================================
+THEMES
+==================================================
+
+You have real theme support.
+
+Available theme keys (use these exact keys when applying):
+
+${Object.keys(INSIDER_THEMES)
+  .map((key) => `- ${key} → ${INSIDER_THEMES[key as InsiderThemeName].name}`)
+  .join("\n")}
+
+When the user asks:
+
+- what themes are available
+- show themes
+- list themes
+- available themes
+- which themes do we have
+- current theme
+- what is the current theme
+- show current theme
+
+use the list_themes tool.
+
+The list_themes response MUST always include:
+
+1. The full list of available themes
+2. The currently active theme (if known from the last successful apply, or "Default / not set by agent" otherwise)
+
+When the user asks to:
+
+- apply theme X
+- switch to theme X
+- use theme X
+- set theme X
+- change theme to X
+- apply the X theme
+
+use the apply_theme tool with the exact theme key.
+
+Only use real keys from INSIDER_THEMES.
+
+Never invent a theme name.
+
+After a successful apply, always show a clean success message that includes the theme name and key.
+
+==================================================
 ACTION SAFETY
 ==================================================
 
@@ -693,6 +749,8 @@ Never invent image URLs.
 Never invent records.
 
 Never invent sort orders.
+
+Never invent theme names.
 
 Never claim success without a successful server action.
 
@@ -1306,6 +1364,64 @@ The editor will NOT be created until you explicitly confirm.`;
 }
 
 // ============================================================
+// THEME HELPERS
+// ============================================================
+
+function findThemeKey(value: string): InsiderThemeName | null {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "-");
+
+  if (!normalized) return null;
+
+  // exact key match
+  if (normalized in INSIDER_THEMES) {
+    return normalized as InsiderThemeName;
+  }
+
+  // match by display name
+  for (const [key, theme] of Object.entries(INSIDER_THEMES)) {
+    if (
+      theme.name.toLowerCase() === normalized ||
+      theme.name.toLowerCase().replace(/\s+/g, "-") === normalized
+    ) {
+      return key as InsiderThemeName;
+    }
+  }
+
+  return null;
+}
+
+function formatThemeList(currentThemeKey: string | null = null) {
+  const lines = ["## Available Themes", ""];
+
+  const keys = Object.keys(INSIDER_THEMES) as InsiderThemeName[];
+
+  for (const [index, key] of keys.entries()) {
+    const theme = INSIDER_THEMES[key];
+    const isCurrent = currentThemeKey === key;
+
+    lines.push(`${index + 1}. **${theme.name}** (\`${key}\`)${isCurrent ? " ← **Current**" : ""}`);
+  }
+
+  lines.push("");
+  lines.push("### Current Theme");
+
+  if (currentThemeKey && INSIDER_THEMES[currentThemeKey as InsiderThemeName]) {
+    const t = INSIDER_THEMES[currentThemeKey as InsiderThemeName];
+    lines.push(`- **${t.name}** (\`${currentThemeKey}\`)`);
+  } else {
+    lines.push("- Default / not set by the agent yet");
+  }
+
+  lines.push("");
+  lines.push("To apply a theme, say for example: `apply theme supabase` or `switch to cyberpunk`.");
+
+  return lines.join("\n");
+}
+
+// Simple in-memory last applied theme (resets on server restart – good enough for agent sessions)
+let lastAppliedTheme: InsiderThemeName | null = null;
+
+// ============================================================
 // GROQ RATE LIMIT
 // ============================================================
 
@@ -1798,6 +1914,43 @@ const AGENT_TOOLS = [
           },
         },
         required: ["editor"],
+        additionalProperties: false,
+      },
+    },
+  },
+
+  // ========== THEME TOOLS ==========
+  {
+    type: "function",
+    function: {
+      name: "list_themes",
+      description:
+        "Show all available INSIDER themes and the currently active theme. Use this when the user asks what themes are available or what the current theme is.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+
+  {
+    type: "function",
+    function: {
+      name: "apply_theme",
+      description:
+        "Apply one of the available INSIDER themes. Use the exact theme key (e.g. supabase, cyberpunk, amber-minimal). Only call this after the user clearly asks to apply/switch/set a theme.",
+      parameters: {
+        type: "object",
+        properties: {
+          theme: {
+            type: "string",
+            description:
+              "The exact theme key from INSIDER_THEMES (e.g. supabase, twitter, cyberpunk).",
+          },
+        },
+        required: ["theme"],
         additionalProperties: false,
       },
     },
@@ -2957,7 +3110,73 @@ The **${updatedValues.name}** editor was updated successfully.
     }
 
     // ========================================================
-    // 21. UNSUPPORTED
+    // 21. LIST THEMES
+    // ========================================================
+
+    if (toolName === "list_themes") {
+      return {
+        success: true,
+        response: formatThemeList(lastAppliedTheme),
+      };
+    }
+
+    // ========================================================
+    // 22. APPLY THEME
+    // ========================================================
+
+    if (toolName === "apply_theme") {
+      const rawTheme = toSafeString(toolArguments.theme).trim();
+
+      if (!rawTheme) {
+        return {
+          success: false,
+          error: "Please specify which theme you want to apply.",
+        };
+      }
+
+      const themeKey = findThemeKey(rawTheme);
+
+      if (!themeKey) {
+        const available = Object.keys(INSIDER_THEMES)
+          .map((k) => `\`${k}\` (${INSIDER_THEMES[k as InsiderThemeName].name})`)
+          .join(", ");
+
+        return {
+          success: false,
+          error: `Theme "${rawTheme}" is not available.\n\nAvailable themes: ${available}`,
+        };
+      }
+
+      console.log("[INSIDER AI] Applying theme:", themeKey);
+
+      const result = await applyThemeAction(themeKey);
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error,
+        };
+      }
+
+      // remember last applied theme for this process
+      lastAppliedTheme = themeKey;
+
+      return {
+        success: true,
+        response: `## Theme applied successfully
+
+The **${result.name}** theme has been applied.
+
+- **Theme key:** \`${result.theme}\`
+- **Name:** ${result.name}
+- **Source:** \`${result.url}\`
+
+The theme is now active. You may need to refresh the page to see the visual changes.`,
+      };
+    }
+
+    // ========================================================
+    // 23. UNSUPPORTED
     // ========================================================
 
     return {

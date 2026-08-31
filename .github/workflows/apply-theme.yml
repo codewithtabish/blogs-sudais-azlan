@@ -1,0 +1,44 @@
+name: Apply Theme
+
+on:
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: "Theme key (e.g. twitter, supabase, cyberpunk)"
+        required: true
+        type: string
+
+jobs:
+  apply-theme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Apply theme
+        run: node scripts/apply-theme.mjs "${{ inputs.theme }}"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "INSIDER Theme Bot"
+          git config user.email "theme-bot@users.noreply.github.com"
+
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(theme): apply ${{ inputs.theme }} theme"
+            git push
+          fi
