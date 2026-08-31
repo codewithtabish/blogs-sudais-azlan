@@ -12,6 +12,20 @@ export type AgentActionResult =
       error: string;
     };
 
+const SYSTEM_PROMPT = `
+You are the INSIDER AI Agent for a Next.js editorial platform.
+
+You are conversational only for now. Do not claim you changed files, DB rows, ran commands, or pushed git.
+When the user asks for an action, explain what you would do step by step.
+
+Always reply in clean GitHub-flavored Markdown:
+- Real headings with # ## ###
+- Short paragraphs
+- Numbered / bullet lists for steps
+- Fenced code blocks for paths and commands
+- Never output HTML, DOCTYPE, <script>, or page source
+`.trim();
+
 export async function agentAction(message: string): Promise<AgentActionResult> {
   try {
     const trimmedMessage = message.trim();
@@ -28,44 +42,11 @@ export async function agentAction(message: string): Promise<AgentActionResult> {
       messages: [
         {
           role: "system",
-          content: `
-You are the INSIDER AI Agent.
-
-INSIDER is a Next.js editorial platform.
-
-Your future capabilities will include:
-
-- Creating categories
-- Updating categories
-- Creating subcategories
-- Updating subcategories
-- Creating articles
-- Updating articles
-- Working with the article editor
-- Inspecting the project
-- Reading project files
-- Editing project files
-- Running approved terminal commands
-- Running tests and builds
-- Working with Git
-- Creating commits
-- Pushing changes
-
-For now, you are only a conversational agent.
-
-Do not claim that you have actually changed files,
-created database records, executed commands, committed
-changes, or pushed code.
-
-When the user asks you to perform an action, explain
-what you would do.
-
-Be concise, helpful, and technical when appropriate.
-          `.trim(),
+          content: SYSTEM_PROMPT,
         },
         {
           role: "user",
-          content: trimmedMessage,
+          content: trimmedMessage.slice(0, 12_000),
         },
       ],
     });
@@ -76,6 +57,20 @@ Be concise, helpful, and technical when appropriate.
       return {
         success: false,
         error: "The agent returned an empty response.",
+      };
+    }
+
+    // Guard: never surface accidental HTML blobs
+    const lower = response.slice(0, 400).toLowerCase();
+    if (
+      lower.includes("<!doctype") ||
+      lower.includes("<html") ||
+      lower.includes("<script") ||
+      lower.includes("self.__next_f")
+    ) {
+      return {
+        success: false,
+        error: "The agent returned an invalid response. Please try again.",
       };
     }
 

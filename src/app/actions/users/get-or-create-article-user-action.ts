@@ -4,29 +4,28 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidateTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
-import prisma from "@/lib/prisma-client";
 import { ADMIN_EMAILS } from "@/lib/admin-emails";
+import prisma from "@/lib/prisma-client";
 
 /**
- * Gets the currently authenticated Clerk user and makes sure
- * a corresponding User record exists in the INSIDER database.
+ * Gets the currently authenticated Clerk user and synchronizes
+ * the corresponding User record in the INSIDER database.
  *
  * IMPORTANT:
  *
  * - Clerk is the authentication/source-of-truth system.
- * - The INSIDER User table is only the local application user record.
+ * - The INSIDER User table is the local application user record.
  * - ADMIN_EMAILS is the admin allow-list.
- * - If the user's primary email exists in ADMIN_EMAILS,
- *   the local user is created with role "ADMIN".
- * - Otherwise the local user is created with role "USER".
- * - Safe to call multiple times because clerkId is unique.
+ * - The role is ALWAYS recalculated from the current Clerk email.
+ * - Existing users are UPDATED so changes to ADMIN_EMAILS take effect.
+ * - New users are CREATED with the correct role.
  *
  * INSIDER production URL:
  * https://insider.sudaisazlan.com
  */
 export async function getOrCreateArticleUser() {
   // ==========================================================
-  // 1. Get authenticated Clerk user ID
+  // 1. GET AUTHENTICATED CLERK USER ID
   // ==========================================================
 
   const { userId } = await auth();
@@ -36,23 +35,11 @@ export async function getOrCreateArticleUser() {
   }
 
   // ==========================================================
-  // 2. Check whether this Clerk user already exists locally
-  // ==========================================================
-
-  const existingUser = await prisma.user.findUnique({
-    where: {
-      clerkId: userId,
-    },
-  });
-
-  if (existingUser) {
-    return existingUser;
-  }
-
-  // ==========================================================
-  // 3. User does not exist in INSIDER DB yet.
+  // 2. GET CURRENT CLERK USER
   //
-  // Get the authenticated user directly from Clerk.
+  // We intentionally do this even when the local user already
+  // exists because ADMIN_EMAILS and Clerk profile information
+  // must be synchronized on every call.
   // ==========================================================
 
   const clerkUser = await currentUser();
@@ -62,7 +49,7 @@ export async function getOrCreateArticleUser() {
   }
 
   // ==========================================================
-  // 4. Get primary email from Clerk
+  // 3. GET PRIMARY EMAIL
   // ==========================================================
 
   const primaryEmail =
@@ -72,49 +59,119 @@ export async function getOrCreateArticleUser() {
     null;
 
   // ==========================================================
-  // 5. Determine local role from ADMIN_EMAILS
-  //
-  // ADMIN_EMAILS comes from .env:
-  //
-  // ADMIN_EMAILS=kashisultan099@gmail.com,tabish@codewithtabish.com,sudaisazlan09@gmail.com
-  //
-  // Comparison is case-insensitive.
+  // 4. NORMALIZE EMAIL
   // ==========================================================
 
   const normalizedEmail = primaryEmail?.trim().toLowerCase() ?? "";
+
+  // ==========================================================
+  // 5. DETERMINE ROLE FROM ADMIN_EMAILS
+  //
+  // ADMIN_EMAILS is already normalized in:
+  //
+  // src/lib/admin-emails.ts
+  //
+  // Example:
+  //
+  // ADMIN_EMAILS=
+  // kashisultan099@gmail.com,
+  // tabish@codewithtabish.com,
+  // sudaisazlan09@gmail.com
+  //
+  // The comparison is case-insensitive because the current
+  // Clerk email is normalized before comparison.
+  // ==========================================================
 
   const isAdmin = normalizedEmail.length > 0 && ADMIN_EMAILS.includes(normalizedEmail);
 
   const role = isAdmin ? "ADMIN" : "USER";
 
   // ==========================================================
-  // 6. Create local INSIDER user
+  // 6. CHECK EXISTING LOCAL USER
+  // ==========================================================
+
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      clerkId: userId,
+    },
+  });
+
+  // ==========================================================
+  // 7. UPDATE EXISTING USER
+  //
+  // IMPORTANT:
+  //
+  // We update the role every time.
+  //
+  // This means:
+  //
+  // ADMIN_EMAILS adds email
+  //        ↓
+  // existing USER
+  //        ↓
+  // becomes ADMIN
+  //
+  // ADMIN_EMAILS removes email
+  //        ↓
+  // existing ADMIN
+  //        ↓
+  // becomes USER
+  //
+  // No manual database update is required.
+  // ==========================================================
+
+  if (existingUser) {
+    const updatedUser = await prisma.user.update({
+      where: {
+        clerkId: userId,
+      },
+      data: {
+        email: primaryEmail,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+        role,
+      },
+    });
+
+    // Only revalidate users cache when synchronization actually
+    // happens. This keeps the cache behavior predictable.
+    revalidateTag(CACHE_TAGS.users, "max");
+
+    console.log("[INSIDER] Local user synchronized.");
+    console.log("[INSIDER] Clerk ID:", clerkUser.id);
+    console.log("[INSIDER] Email:", normalizedEmail);
+    console.log("[INSIDER] Previous role:", existingUser.role);
+    console.log("[INSIDER] Current role:", updatedUser.role);
+
+    return updatedUser;
+  }
+
+  // ==========================================================
+  // 8. CREATE NEW LOCAL USER
   // ==========================================================
 
   const newUser = await prisma.user.create({
     data: {
       clerkId: clerkUser.id,
-
       email: primaryEmail,
-
       firstName: clerkUser.firstName,
-
       lastName: clerkUser.lastName,
-
       imageUrl: clerkUser.imageUrl,
-
       role,
-
       isActive: true,
-
       isVerified: false,
     },
   });
 
+  // ==========================================================
+  // 9. REVALIDATE USERS CACHE
+  // ==========================================================
+
   revalidateTag(CACHE_TAGS.users, "max");
 
   // ==========================================================
-  // 7. Logging
+  // 10. LOGGING
   // ==========================================================
 
   console.log("[INSIDER] Local user created.");

@@ -40,9 +40,12 @@ type CreateCategoryResult =
 // ADMIN_EMAILS
 //
 // getOrCreateArticleUser() is responsible for:
+//
 // - Getting the authenticated Clerk user
 // - Finding the local INSIDER user
 // - Creating the local user if necessary
+// - Updating the local user if it already exists
+// - Synchronizing the user's email/profile information
 // - Determining ADMIN/USER from ADMIN_EMAILS
 //
 // This action only needs to check the resulting role.
@@ -51,26 +54,36 @@ type CreateCategoryResult =
 export async function createCategoryAction(formData: unknown): Promise<CreateCategoryResult> {
   try {
     // ========================================================
-    // 1. GET / CREATE INSIDER USER
+    // 1. GET / CREATE / UPDATE INSIDER USER
     // ========================================================
     //
-    // This is the first-time synchronization point.
+    // This function always synchronizes the Clerk user with
+    // the local INSIDER user.
     //
-    // If the Clerk user does not exist in the INSIDER database:
+    // If the user does not exist:
     //
-    // Clerk user
-    //      ↓
+    // Clerk
+    //   ↓
     // primary email
-    //      ↓
-    // ADMIN_EMAILS check
-    //      ↓
-    // ADMIN or USER
-    //      ↓
-    // INSIDER Prisma User
+    //   ↓
+    // ADMIN_EMAILS
+    //   ↓
+    // ADMIN / USER
+    //   ↓
+    // CREATE INSIDER USER
     //
-    // If the user already exists, the existing record is
-    // returned.
-
+    // If the user already exists:
+    //
+    // Clerk
+    //   ↓
+    // primary email
+    //   ↓
+    // ADMIN_EMAILS
+    //   ↓
+    // ADMIN / USER
+    //   ↓
+    // UPDATE INSIDER USER
+    //
     const dbUser = await getOrCreateArticleUser();
 
     console.log("[createCategory] INSIDER user:", {
@@ -85,17 +98,26 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     // 2. ADMIN AUTHORIZATION
     // ========================================================
     //
-    // getOrCreateArticleUser() has already determined the role
-    // using ADMIN_EMAILS.
+    // getOrCreateArticleUser() has already synchronized the
+    // user's role using ADMIN_EMAILS.
     //
-    // Example .env:
+    // Therefore this check always uses the CURRENT role.
     //
-    // ADMIN_EMAILS=kashisultan099@gmail.com,tabish@codewithtabish.com,sudaisazlan09@gmail.com
+    // Example:
     //
-    // If the authenticated user's primary email matches one
-    // of those emails, their local role is ADMIN.
+    // ADMIN_EMAILS=
+    // kashisultan099@gmail.com,
+    // tabish@codewithtabish.com,
+    // sudaisazlan09@gmail.com
     //
-    // Otherwise their role is USER.
+    // If the current Clerk email matches one of these emails:
+    //
+    // role = ADMIN
+    //
+    // Otherwise:
+    //
+    // role = USER
+    //
 
     if (dbUser.role !== "ADMIN") {
       console.error("[createCategory] Unauthorized admin attempt:", {
@@ -192,8 +214,8 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     revalidateTag(CACHE_TAGS.categories, "max");
 
     if (isActive) {
-      // This also clears a cached "not found" category-page lookup for
-      // the newly created public slug.
+      // Clears any cached "not found" category-page lookup
+      // for the newly created public category.
       revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
     }
 
@@ -203,12 +225,11 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     // 9. INDEXNOW
     // ========================================================
     //
-    // Your pingIndexNow() helper is responsible for the
-    // INSIDER production URL:
+    // pingIndexNow() is responsible for using:
     //
     // https://insider.sudaisazlan.com
     //
-    // This action only sends the relative path.
+    // This action only passes the relative path.
     //
     // Example:
     //
@@ -218,7 +239,6 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     //
     // https://insider.sudaisazlan.com/technology
     //
-    // assuming your index-now helper uses the INSIDER URL.
 
     if (isActive) {
       try {
@@ -226,11 +246,8 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
         console.log("[createCategory] IndexNow notification sent:", `/${category.slug}`);
       } catch (indexNowError) {
-        // IndexNow is intentionally non-blocking.
-        //
-        // The category was already successfully created in
-        // the database, so an IndexNow failure should not
-        // report the entire operation as failed.
+        // IndexNow must never cause a successfully created
+        // category to be reported as a failed operation.
 
         console.error("[createCategory] IndexNow notification failed:", indexNowError);
       }

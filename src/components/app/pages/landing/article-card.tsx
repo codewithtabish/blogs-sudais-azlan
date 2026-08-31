@@ -15,7 +15,7 @@ export function ArticleCard({
   variant?: "large" | "default" | "compact";
   priority?: boolean;
 }) {
-  const href = `/articles/${blog.slug}`;
+  const href = `/${blog.category.slug}/${blog.subcategory.slug}/${blog.slug}`;
   const imageUrl = getArticleImageUrl(blog.bannerImage);
   const alt = blog.bannerImageAlt || blog.title;
   const hasSubcategory = Boolean(blog.subcategory?.slug);
