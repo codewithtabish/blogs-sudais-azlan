@@ -1,13 +1,13 @@
 "use server";
 
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 import { pingIndexNow } from "@/lib/index-now";
 import { categorySchema } from "@/schemas/category-schema";
 import prisma from "@/lib/prisma-client";
-
-import { getOrCreateArticleUser } from "../users/get-or-create-article-user-action";
 
 // ============================================================
 // TYPES
@@ -33,75 +33,93 @@ type CreateCategoryResult =
 // Authentication:
 // Clerk
 //
+// User information:
+// Clerk currentUser()
+//
 // Local user:
 // INSIDER Prisma User
 //
-// Admin authorization:
+// Authorization:
+// ADMIN ONLY
+//
+// Flow:
+//
+// Clerk auth()
+//      ↓
+// Clerk currentUser()
+//      ↓
+// Primary email
+//      ↓
 // ADMIN_EMAILS
+//      ↓
+// ADMIN / USER
+//      ↓
+// Find local Prisma user
+//      ↓
+// Create OR update local user
+//      ↓
+// ADMIN authorization
+//      ↓
+// Create category
 //
-// getOrCreateArticleUser() is responsible for:
-//
-// - Getting the authenticated Clerk user
-// - Finding the local INSIDER user
-// - Creating the local user if necessary
-// - Updating the local user if it already exists
-// - Synchronizing the user's email/profile information
-// - Determining ADMIN/USER from ADMIN_EMAILS
-//
-// This action only needs to check the resulting role.
 // ============================================================
 
 export async function createCategoryAction(formData: unknown): Promise<CreateCategoryResult> {
   try {
     // ========================================================
-    // 1. GET / CREATE / UPDATE INSIDER USER
+    // 1. GET AUTHENTICATED CLERK USER ID
     // ========================================================
-    //
-    // This function always synchronizes the Clerk user with
-    // the local INSIDER user.
-    //
-    // If the user does not exist:
-    //
-    // Clerk
-    //   ↓
-    // primary email
-    //   ↓
-    // ADMIN_EMAILS
-    //   ↓
-    // ADMIN / USER
-    //   ↓
-    // CREATE INSIDER USER
-    //
-    // If the user already exists:
-    //
-    // Clerk
-    //   ↓
-    // primary email
-    //   ↓
-    // ADMIN_EMAILS
-    //   ↓
-    // ADMIN / USER
-    //   ↓
-    // UPDATE INSIDER USER
-    //
-    const dbUser = await getOrCreateArticleUser();
 
-    console.log("[createCategory] INSIDER user:", {
-      id: dbUser.id,
-      clerkId: dbUser.clerkId,
-      email: dbUser.email,
-      role: dbUser.role,
-      isActive: dbUser.isActive,
-    });
+    const { userId } = await auth();
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "Unauthorized.",
+      };
+    }
 
     // ========================================================
-    // 2. ADMIN AUTHORIZATION
+    // 2. GET CURRENT CLERK USER
+    // ========================================================
+
+    const clerkUser = await currentUser();
+
+    if (!clerkUser) {
+      return {
+        success: false,
+        error: "Clerk user not found.",
+      };
+    }
+
+    // ========================================================
+    // 3. GET PRIMARY EMAIL
+    // ========================================================
+
+    const primaryEmail =
+      clerkUser.emailAddresses.find((email) => email.id === clerkUser.primaryEmailAddressId)
+        ?.emailAddress ??
+      clerkUser.emailAddresses[0]?.emailAddress ??
+      null;
+
+    if (!primaryEmail) {
+      return {
+        success: false,
+        error: "Your Clerk account does not have an email address.",
+      };
+    }
+
+    // ========================================================
+    // 4. NORMALIZE EMAIL
+    // ========================================================
+
+    const normalizedEmail = primaryEmail.trim().toLowerCase();
+
+    // ========================================================
+    // 5. DETERMINE ROLE FROM ADMIN_EMAILS
     // ========================================================
     //
-    // getOrCreateArticleUser() has already synchronized the
-    // user's role using ADMIN_EMAILS.
-    //
-    // Therefore this check always uses the CURRENT role.
+    // ADMIN_EMAILS is the admin allow-list.
     //
     // Example:
     //
@@ -110,13 +128,105 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     // tabish@codewithtabish.com,
     // sudaisazlan09@gmail.com
     //
-    // If the current Clerk email matches one of these emails:
+    // The comparison is case-insensitive.
     //
-    // role = ADMIN
+
+    const isAdmin = normalizedEmail.length > 0 && ADMIN_EMAILS.includes(normalizedEmail);
+
+    const role = isAdmin ? "ADMIN" : "USER";
+
+    // ========================================================
+    // 6. FIND LOCAL INSIDER USER
+    // ========================================================
+
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
+
+    // ========================================================
+    // 7. CREATE OR UPDATE LOCAL USER
+    // ========================================================
     //
-    // Otherwise:
+    // Clerk remains the source of truth for:
     //
-    // role = USER
+    // - email
+    // - firstName
+    // - lastName
+    // - imageUrl
+    //
+    // ADMIN_EMAILS determines:
+    //
+    // - ADMIN
+    // - USER
+    //
+    // Existing users are synchronized.
+    //
+
+    let dbUser;
+
+    if (existingUser) {
+      dbUser = await prisma.user.update({
+        where: {
+          clerkId: userId,
+        },
+        data: {
+          email: primaryEmail,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          imageUrl: clerkUser.imageUrl,
+          role,
+        },
+      });
+
+      console.log("[createCategory] INSIDER user updated:", {
+        id: dbUser.id,
+        clerkId: dbUser.clerkId,
+        email: dbUser.email,
+        firstName: dbUser.firstName,
+        lastName: dbUser.lastName,
+        role: dbUser.role,
+        isActive: dbUser.isActive,
+      });
+    } else {
+      dbUser = await prisma.user.create({
+        data: {
+          clerkId: clerkUser.id,
+          email: primaryEmail,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          imageUrl: clerkUser.imageUrl,
+          role,
+          isActive: true,
+          isVerified: false,
+        },
+      });
+
+      console.log("[createCategory] INSIDER user created:", {
+        id: dbUser.id,
+        clerkId: dbUser.clerkId,
+        email: dbUser.email,
+        firstName: dbUser.firstName,
+        lastName: dbUser.lastName,
+        role: dbUser.role,
+        isActive: dbUser.isActive,
+      });
+    }
+
+    // ========================================================
+    // 8. REVALIDATE USER CACHE
+    // ========================================================
+
+    revalidateTag(CACHE_TAGS.users, "max");
+
+    // ========================================================
+    // 9. ADMIN AUTHORIZATION
+    // ========================================================
+    //
+    // This category action is ADMIN ONLY.
+    //
+    // The required role is explicitly ADMIN.
     //
 
     if (dbUser.role !== "ADMIN") {
@@ -129,12 +239,12 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
       return {
         success: false,
-        error: "You are not authorized to do this.",
+        error: "You are not authorized to create categories.",
       };
     }
 
     // ========================================================
-    // 3. CHECK ACTIVE ACCOUNT
+    // 10. CHECK ACTIVE ACCOUNT
     // ========================================================
 
     if (!dbUser.isActive) {
@@ -145,7 +255,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     }
 
     // ========================================================
-    // 4. VALIDATE FORM DATA
+    // 11. VALIDATE FORM DATA
     // ========================================================
 
     const parsed = categorySchema.safeParse(formData);
@@ -162,15 +272,17 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     const { name, slug, description, isActive, sortOrder } = parsed.data;
 
     // ========================================================
-    // 5. NORMALIZE CATEGORY DATA
+    // 12. NORMALIZE CATEGORY DATA
     // ========================================================
 
     const normalizedName = name.trim();
+
     const normalizedSlug = slug.trim().toLowerCase();
+
     const normalizedDescription = description?.trim() || null;
 
     // ========================================================
-    // 6. CHECK DUPLICATE CATEGORY SLUG
+    // 13. CHECK DUPLICATE CATEGORY SLUG
     // ========================================================
 
     const existingCategory = await prisma.category.findUnique({
@@ -187,7 +299,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     }
 
     // ========================================================
-    // 7. CREATE CATEGORY
+    // 14. CREATE CATEGORY
     // ========================================================
 
     const category = await prisma.category.create({
@@ -205,39 +317,30 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
       name: category.name,
       slug: category.slug,
       createdBy: dbUser.id,
+      createdByEmail: dbUser.email,
     });
 
     // ========================================================
-    // 8. REVALIDATE INSIDER CACHE
+    // 15. REVALIDATE CATEGORY CACHE
     // ========================================================
 
     revalidateTag(CACHE_TAGS.categories, "max");
 
     if (isActive) {
-      // Clears any cached "not found" category-page lookup
-      // for the newly created public category.
       revalidateTag(CACHE_TAGS.categoryPageBlogs(category.slug), "max");
     }
 
     revalidatePath("/dashboard/category");
 
     // ========================================================
-    // 9. INDEXNOW
+    // 16. INDEXNOW
     // ========================================================
     //
-    // pingIndexNow() is responsible for using:
+    // pingIndexNow() handles:
     //
     // https://insider.sudaisazlan.com
     //
-    // This action only passes the relative path.
-    //
-    // Example:
-    //
-    // /technology
-    //
-    // becomes:
-    //
-    // https://insider.sudaisazlan.com/technology
+    // We only provide the relative category path.
     //
 
     if (isActive) {
@@ -246,15 +349,15 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
         console.log("[createCategory] IndexNow notification sent:", `/${category.slug}`);
       } catch (indexNowError) {
-        // IndexNow must never cause a successfully created
-        // category to be reported as a failed operation.
+        // IndexNow failure must not make the category
+        // creation operation fail.
 
         console.error("[createCategory] IndexNow notification failed:", indexNowError);
       }
     }
 
     // ========================================================
-    // 10. SUCCESS
+    // 17. SUCCESS
     // ========================================================
 
     return {
@@ -266,7 +369,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
     return {
       success: false,
-      error: "Something went wrong. Try again.",
+      error: error instanceof Error ? error.message : "Something went wrong. Try again.",
     };
   }
 }
