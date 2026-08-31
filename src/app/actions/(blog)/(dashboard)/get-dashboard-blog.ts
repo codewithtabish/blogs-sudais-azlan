@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@/generated/prisma/browser";
 import prisma from "@/lib/prisma-client";
 
@@ -176,6 +177,12 @@ async function getCachedBlogs(
 // ============================================================
 export async function getDashboardBlogsAction(input: GetBlogsInput = {}): Promise<GetBlogsResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     const page = Math.max(1, input.page ?? 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, input.pageSize ?? DEFAULT_PAGE_SIZE));
     const sortBy = input.sortBy ?? "createdAt";

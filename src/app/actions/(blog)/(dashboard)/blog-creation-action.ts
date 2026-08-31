@@ -9,6 +9,7 @@ import { OpenAI } from "openai";
 import { CACHE_TAGS } from "@/lib/cache-keys";
 
 import { pingIndexNow } from "@/lib/index-now";
+import { getOrCreateArticleUser } from "@/app/actions/users/get-or-create-article-user-action";
 import { CreateBlogInput, CreateBlogResult } from "@/schemas/blog-schema";
 import prisma from "@/lib/prisma-client";
 
@@ -194,7 +195,7 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     if (!clerkId) {
       return {
         success: false,
-        error: "Unauthorized. Please sign in.",
+        error: "Unauthorized.",
       };
     }
 
@@ -202,22 +203,7 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     // FIND USER
     // ========================================================
 
-    const user = await prisma.user.findUnique({
-      where: {
-        clerkId,
-      },
-
-      select: {
-        id: true,
-      },
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found in database.",
-      };
-    }
+    const user = await getOrCreateArticleUser();
 
     // ========================================================
     // VALIDATION

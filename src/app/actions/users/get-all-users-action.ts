@@ -1,6 +1,7 @@
 // src/app/actions/(users)/get-all-users-action.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -46,6 +47,12 @@ async function getCachedUsers() {
 
 export async function getAllUsersAction(): Promise<GetAllUsersResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     const users = await getCachedUsers();
     return { success: true, users };
   } catch (err) {

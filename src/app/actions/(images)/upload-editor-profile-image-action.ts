@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { uploadEditorProfileImage } from "@/lib/images/upload-editor-profile-image";
 
 // ---------------------------------------------------------
@@ -58,6 +59,12 @@ export async function uploadEditorProfileImageAction(
   formData: FormData,
 ): Promise<UploadEditorProfileImageResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     // -------------------------------------------------------
     // 1. Get file
     // -------------------------------------------------------

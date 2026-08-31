@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { uploadOgImage } from "@/lib/images/upload-og-image";
 
 type UploadOgSuccess = {
@@ -35,6 +36,12 @@ const ALLOWED_TYPES = new Set([
 
 export async function uploadOgAction(formData: FormData): Promise<UploadOgResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     // -------------------------------------------------------
     // 1. Get file
     // -------------------------------------------------------

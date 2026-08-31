@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma-client";
 
 export type EditorDetail = {
@@ -36,6 +37,12 @@ type GetEditorByIdError = {
 export type GetEditorByIdResult = GetEditorByIdSuccess | GetEditorByIdError;
 
 export async function getEditorByIdAction(editorId: string): Promise<GetEditorByIdResult> {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
   if (!editorId?.trim()) {
     return {
       success: false,

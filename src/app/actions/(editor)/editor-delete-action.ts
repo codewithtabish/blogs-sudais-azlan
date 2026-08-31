@@ -2,6 +2,7 @@
 
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -17,6 +18,12 @@ type DeleteEditorResult =
     };
 
 export async function deleteEditorAction(editorId: string): Promise<DeleteEditorResult> {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
   // ============================================================
   // 1. VALIDATE EDITOR ID
   // ============================================================

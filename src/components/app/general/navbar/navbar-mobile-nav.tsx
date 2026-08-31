@@ -22,7 +22,7 @@ import type { CategoryListItem } from "@/app/actions/(category)/get-all-categori
 
 interface NavbarMobileNavProps {
   categories: CategoryListItem[];
-  isAdmin: boolean;
+  isAuthenticated: boolean;
 }
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -30,7 +30,7 @@ function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function NavbarMobileNav({ categories, isAdmin }: NavbarMobileNavProps) {
+export function NavbarMobileNav({ categories, isAuthenticated }: NavbarMobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const close = () => setOpen(false);
@@ -72,11 +72,11 @@ export function NavbarMobileNav({ categories, isAdmin }: NavbarMobileNavProps) {
               />
             ))}
 
-            {isAdmin && (
+            {isAuthenticated && (
               <>
                 <Separator className="my-4 bg-border/60" />
                 <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Admin
+                  Dashboard
                 </p>
                 <MobileLink
                   label="Dashboard"

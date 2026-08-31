@@ -4,7 +4,6 @@ import {
   getAllCategoriesAction,
   type CategoryListItem,
 } from "@/app/actions/(category)/get-all-categories-action";
-import { checkIsAdminAction } from "@/app/actions/admin/check-is-admin-action";
 import { useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -29,7 +28,6 @@ export function Navbar() {
   const pathname = usePathname();
 
   const [categories, setCategories] = useState<CategoryListItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const hideNavbar = isAgentRoute(pathname);
 
@@ -42,10 +40,7 @@ export function Navbar() {
 
     async function loadNavbarData() {
       try {
-        const [categoriesResult, adminResult] = await Promise.all([
-          getAllCategoriesAction(),
-          user ? checkIsAdminAction() : Promise.resolve(false),
-        ]);
+        const categoriesResult = await getAllCategoriesAction();
 
         if (!mounted) {
           return;
@@ -56,14 +51,11 @@ export function Navbar() {
         } else {
           setCategories([]);
         }
-
-        setIsAdmin(adminResult);
       } catch (error) {
         console.error("[Navbar] Failed to load navbar data:", error);
 
         if (mounted) {
           setCategories([]);
-          setIsAdmin(false);
         }
       }
     }
@@ -79,5 +71,5 @@ export function Navbar() {
     return null;
   }
 
-  return <NavbarClient categories={categories} isAdmin={isAdmin} />;
+  return <NavbarClient categories={categories} isAuthenticated={Boolean(user)} />;
 }

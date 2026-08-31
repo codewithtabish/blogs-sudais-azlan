@@ -1,6 +1,7 @@
 // src/app/actions/(editor)/create-editor-action.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { CACHE_TAGS } from "@/lib/cache-keys";
 import prisma from "@/lib/prisma-client";
 import { EditorFormValues, editorSchema } from "@/schemas/editor-schema";
@@ -28,6 +29,12 @@ export type CreateEditorResult = CreateEditorSuccess | CreateEditorError;
 // ---------------------------------------------------------
 
 export async function createEditorAction(values: EditorFormValues): Promise<CreateEditorResult> {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
   // -------------------------------------------------------
   // 1. Validate input
   // -------------------------------------------------------

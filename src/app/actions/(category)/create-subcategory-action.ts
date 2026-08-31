@@ -38,24 +38,7 @@ export async function createSubcategoryAction(formData: unknown): Promise<Create
   if (!userId) {
     return {
       success: false,
-      error: "You must be signed in.",
-    };
-  }
-
-  // ==========================================================
-  // CHECK ADMIN
-  // ==========================================================
-
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      clerkId: userId,
-    },
-  });
-
-  if (!dbUser || dbUser.role !== "ADMIN") {
-    return {
-      success: false,
-      error: "You are not authorized to do this.",
+      error: "Unauthorized.",
     };
   }
 

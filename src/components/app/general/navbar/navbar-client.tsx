@@ -16,7 +16,7 @@ import { NavbarMobileNav } from "./navbar-mobile-nav";
 
 interface NavbarClientProps {
   categories: CategoryListItem[];
-  isAdmin: boolean;
+  isAuthenticated: boolean;
 }
 
 /**
@@ -27,10 +27,9 @@ interface NavbarClientProps {
  * - This component does NOT query Prisma.
  * - This component does NOT create/sync local users.
  * - Authentication UI is handled by Clerk.
- * - Admin authorization is handled server-side.
- * - `isAdmin` is provided by the parent/server layer.
+ * - Dashboard links are shown to authenticated Clerk users.
  */
-export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
+export function NavbarClient({ categories, isAuthenticated }: NavbarClientProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:h-[70px] lg:px-8">
@@ -89,7 +88,7 @@ export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
                   },
                 }}
               >
-                {isAdmin ? (
+                {isAuthenticated ? (
                   <UserButton.MenuItems>
                     <UserButton.Link
                       label="Dashboard"
@@ -111,7 +110,7 @@ export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
               MOBILE NAVIGATION
           ==================================================== */}
 
-          <NavbarMobileNav categories={categories} isAdmin={isAdmin} />
+          <NavbarMobileNav categories={categories} isAuthenticated={isAuthenticated} />
         </div>
       </div>
     </header>

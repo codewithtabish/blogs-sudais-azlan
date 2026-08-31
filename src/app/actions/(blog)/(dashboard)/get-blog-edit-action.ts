@@ -43,7 +43,7 @@ export async function getBlogForEditAction(id: string): Promise<GetBlogForEditRe
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
-      return { success: false, error: "Unauthorized. Please sign in." };
+      return { success: false, error: "Unauthorized." };
     }
 
     if (!id?.trim()) {

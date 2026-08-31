@@ -39,7 +39,7 @@ export async function deleteBlogAction(blogId: string): Promise<DeleteBlogResult
     if (!clerkId) {
       return {
         success: false,
-        error: "Unauthorized. Please sign in.",
+        error: "Unauthorized.",
       };
     }
 

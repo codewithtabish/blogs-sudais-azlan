@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -104,6 +105,12 @@ async function getCachedEditors(): Promise<EditorListItem[]> {
 
 export async function getAllEditorsAction(): Promise<GetAllEditorsResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     const editors = await getCachedEditors();
 
     return {

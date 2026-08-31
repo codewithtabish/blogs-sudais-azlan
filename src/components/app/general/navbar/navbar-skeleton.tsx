@@ -2,7 +2,7 @@
  * INSIDER Navbar Skeleton
  *
  * Shown instantly while the real <Navbar /> (categories fetch +
- * streamed admin check) resolves inside its <Suspense> boundary.
+ * category data resolves inside its <Suspense> boundary.
  *
  * IMPORTANT: dimensions here must match the real navbar's header
  * height (h-16 / lg:h-[70px]) exactly, or the page will jump when

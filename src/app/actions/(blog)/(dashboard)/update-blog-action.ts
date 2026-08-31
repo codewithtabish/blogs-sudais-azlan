@@ -255,32 +255,12 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
     if (!clerkId) {
       return {
         success: false,
-        error: "Unauthorized. Please sign in.",
+        error: "Unauthorized.",
       };
     }
 
     // ========================================================
-    // 2. FIND USER
-    // ========================================================
-
-    const user = await prisma.user.findUnique({
-      where: {
-        clerkId,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found in database.",
-      };
-    }
-
-    // ========================================================
-    // 3. VALIDATION
+    // 2. VALIDATION
     // ========================================================
 
     if (!data.id?.trim()) {

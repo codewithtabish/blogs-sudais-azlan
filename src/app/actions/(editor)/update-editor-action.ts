@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { CACHE_TAGS } from "@/lib/cache-keys";
@@ -23,6 +24,12 @@ export async function updateEditorAction(
   editorId: string,
   values: EditorFormValues,
 ): Promise<UpdateEditorResult> {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
   if (!editorId?.trim()) {
     return {
       success: false,

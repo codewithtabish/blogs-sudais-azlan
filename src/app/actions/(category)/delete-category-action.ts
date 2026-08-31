@@ -37,33 +37,12 @@ export async function deleteCategoryAction(categoryId: string): Promise<DeleteCa
     if (!userId) {
       return {
         success: false,
-        error: "You must be signed in.",
+        error: "Unauthorized.",
       };
     }
 
     // ========================================================
-    // 2. ADMIN AUTHORIZATION
-    // ========================================================
-
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        clerkId: userId,
-      },
-      select: {
-        id: true,
-        role: true,
-      },
-    });
-
-    if (!dbUser || dbUser.role !== "ADMIN") {
-      return {
-        success: false,
-        error: "You are not authorized to do this.",
-      };
-    }
-
-    // ========================================================
-    // 3. VALIDATE CATEGORY ID
+    // 2. VALIDATE CATEGORY ID
     // ========================================================
 
     const normalizedCategoryId = categoryId?.trim();

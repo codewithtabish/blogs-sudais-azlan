@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { uploadBannerImage } from "@/lib/images/upload-banner-image";
 
 type UploadBannerSuccess = {
@@ -35,6 +36,12 @@ const ALLOWED_TYPES = new Set([
 
 export async function uploadBannerAction(formData: FormData): Promise<UploadBannerResult> {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized." };
+    }
+
     // -------------------------------------------------------
     // 1. Get file
     // -------------------------------------------------------
