@@ -1,6 +1,6 @@
 // src/app/dashboard/layout.tsx
 import DashboardSidebar from "@/components/app/dashboard/sidebar/app-sidebar";
-import { SecondContainer } from "@/components/app/general/layouts/second-container";
+import { Container } from "@/components/app/general/layouts/container";
 import type { ReactNode } from "react";
 
 const DashboardLayout = ({ children }: { children: ReactNode }) => {
@@ -8,7 +8,7 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => {
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
       <main className="flex-1 overflow-y-auto">
-        <SecondContainer>{children}</SecondContainer>
+        <Container>{children}</Container>
       </main>
     </div>
   );

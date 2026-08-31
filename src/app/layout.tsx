@@ -82,7 +82,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <ClerkProvider>
-              <Container>{children}</Container>
+              {children}
 
               <Toaster />
             </ClerkProvider>

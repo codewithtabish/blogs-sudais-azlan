@@ -96,12 +96,6 @@ export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
                       href="/dashboard"
                       labelIcon={<LayoutDashboard className="h-4 w-4" />}
                     />
-
-                    <UserButton.Link
-                      label="Write Article"
-                      href="/dashboard/write"
-                      labelIcon={<PenLine className="h-4 w-4" />}
-                    />
                   </UserButton.MenuItems>
                 )}
               </UserButton>

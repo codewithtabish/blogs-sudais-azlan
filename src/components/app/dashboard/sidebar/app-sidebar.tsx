@@ -184,7 +184,7 @@ function DashboardSidebarContent() {
         "group/sidebar sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden",
         "border-r border-border bg-sidebar text-sidebar-foreground",
         "transition-[width] duration-300 ease-out",
-        collapsed ? "w-19" : "w-64",
+        collapsed ? "w-20" : "w-64",
       )}
     >
       {/* =====================================================
@@ -195,12 +195,12 @@ function DashboardSidebarContent() {
         <Link
           href="/dashboard"
           className="flex min-w-0 items-center gap-2.5"
-          aria-label="ATATIVE Dashboard"
+          aria-label="INSIDER Dashboard"
         >
           {/* Brand mark */}
 
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-sidebar-primary/40 font-serif text-base font-semibold text-sidebar-primary">
-            A
+            I
           </span>
 
           {/* Wordmark */}
@@ -212,7 +212,7 @@ function DashboardSidebarContent() {
             )}
           >
             <span className="truncate font-serif text-[15px] font-semibold tracking-[0.14em] uppercase">
-              Atative
+              Insider
             </span>
 
             <span className="truncate text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
@@ -278,7 +278,7 @@ function DashboardSidebarContent() {
           <div
             aria-hidden="true"
             className={cn(
-              "pointer-events-none absolute left-0 w-0.75",
+              "pointer-events-none absolute left-0 w-[3px]",
               "rounded-full bg-sidebar-primary",
               "transition-all duration-300 ease-out",
               marker.ready ? "opacity-100" : "opacity-0",
@@ -325,7 +325,7 @@ function DashboardSidebarContent() {
 
                   <Icon
                     className={cn(
-                      "h-4.5 w-4.5 shrink-0",
+                      "h-4 w-4 shrink-0",
                       "transition-transform duration-200",
                       active && "text-sidebar-primary",
                       "group-hover:scale-[1.06]",
@@ -433,7 +433,7 @@ function DashboardSidebarSkeleton() {
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
               <div className="flex h-10 items-center gap-3 rounded-sm px-4">
-                <div className="h-4.5 w-4.5 shrink-0 animate-pulse rounded bg-sidebar-accent" />
+                <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-sidebar-accent" />
 
                 <div className="h-3.5 w-24 animate-pulse rounded bg-sidebar-accent" />
               </div>

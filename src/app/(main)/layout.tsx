@@ -4,6 +4,7 @@ import { SecondContainer } from "@/components/app/general/layouts/second-contain
 import { Navbar } from "@/components/app/general/navbar/navbar";
 import { NavbarSkeleton } from "@/components/app/general/navbar/navbar-skeleton";
 import AtativeFooter from "@/components/app/general/footer/full-footer";
+import { Container } from "@/components/app/general/layouts/container";
 
 const MainPublicLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -12,7 +13,7 @@ const MainPublicLayout = ({ children }: { children: React.ReactNode }) => {
         <Suspense fallback={<NavbarSkeleton />}>
           <Navbar />
         </Suspense>
-        {children}
+        <Container>{children}</Container>
         <AtativeFooter />
       </SecondContainer>
     </main>
