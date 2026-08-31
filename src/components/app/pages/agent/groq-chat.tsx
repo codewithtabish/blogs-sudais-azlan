@@ -1,6 +1,11 @@
 "use client";
 
-import { agentAction, type AgentActionResult } from "@/app/actions/groq/agent-action";
+import {
+  agentAction,
+  type AgentActionResult,
+  type AgentMessage,
+} from "@/app/actions/groq/agent-action";
+
 import {
   useCallback,
   useEffect,
@@ -10,10 +15,11 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { Check, Copy, RotateCcw, Sparkles } from "lucide-react";
+import { Check, Copy, RotateCcw, Send, Sparkles } from "lucide-react";
 
 type MessageRole = "user" | "assistant";
 
@@ -25,12 +31,12 @@ type ChatMessage = {
 
 const SUGGESTIONS = [
   {
-    title: "Change the theme",
-    prompt: "Change the INSIDER theme to the Claude theme.",
+    title: "Create a category",
+    prompt: "Add a new category.",
   },
   {
-    title: "Create a category",
-    prompt: "Create a new AI category called Artificial Intelligence.",
+    title: "Change the theme",
+    prompt: "Change the INSIDER theme to the Claude theme.",
   },
   {
     title: "Create an article",
@@ -47,7 +53,8 @@ function createMessageId() {
 }
 
 function looksLikeHtml(text: string) {
-  const sample = text.slice(0, 500).toLowerCase();
+  const sample = text.slice(0, 1000).toLowerCase();
+
   return (
     sample.includes("<!doctype") ||
     sample.includes("<html") ||
@@ -105,34 +112,11 @@ function AgentIcon() {
   );
 }
 
-function SendIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="size-4"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 14-7-4 14-3-6-7-1Z" />
-    </svg>
-  );
-}
-
-function SpinnerIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="size-4 animate-spin" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" className="opacity-25" stroke="currentColor" strokeWidth="2" />
-      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-2.5 text-muted-foreground">
       <span className="text-sm font-medium">Thinking</span>
+
       <span className="flex items-center gap-1">
         <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
         <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
@@ -142,31 +126,28 @@ function ThinkingIndicator() {
   );
 }
 
-function CopyButton({
-  text,
-  label,
-  className = "",
-}: {
-  text: string;
-  label: string;
-  className?: string;
-}) {
+function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
     await copyText(text, label);
+
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+
+    window.setTimeout(() => {
+      setCopied(false);
+    }, 1600);
   }
 
   return (
     <button
       type="button"
       onClick={handleCopy}
-      className={`inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-background/80 px-2 py-1 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground ${className}`}
+      className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-background/80 px-2 py-1 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
       aria-label={label}
     >
       {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+
       {copied ? "Copied" : "Copy"}
     </button>
   );
@@ -177,25 +158,32 @@ function CodeBlock({ language, children }: { language?: string; children: string
 
   async function handleCopy() {
     await copyText(children, "Code copied");
+
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+
+    window.setTimeout(() => {
+      setCopied(false);
+    }, 1600);
   }
 
   return (
-    <div className="group relative my-4 overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-950 text-zinc-100 shadow-sm dark:border-zinc-700">
+    <div className="group relative my-4 overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-950 text-zinc-100 shadow-sm">
       <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 py-2">
         <span className="font-mono text-[11px] uppercase tracking-wide text-zinc-400">
           {language || "code"}
         </span>
+
         <button
           type="button"
           onClick={handleCopy}
           className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
         >
           {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+
       <pre className="overflow-x-auto p-4 text-[13px] leading-6">
         <code className="font-mono text-zinc-100">{children}</code>
       </pre>
@@ -218,31 +206,39 @@ function AssistantMarkdown({ content }: { content: string }) {
               {children}
             </h1>
           ),
+
           h2: ({ children }) => (
-            <h2 className="mt-6 mb-2.5 flex items-center gap-2 text-lg font-semibold tracking-tight first:mt-0">
+            <h2 className="mt-6 mb-2.5 text-lg font-semibold tracking-tight first:mt-0">
               {children}
             </h2>
           ),
+
           h3: ({ children }) => (
             <h3 className="mt-5 mb-2 text-base font-semibold tracking-tight first:mt-0">
               {children}
             </h3>
           ),
+
           p: ({ children }) => (
             <p className="my-3 leading-7 text-foreground/90 first:mt-0 last:mb-0">{children}</p>
           ),
+
           ul: ({ children }) => (
             <ul className="my-3 list-disc space-y-1.5 pl-5 marker:text-primary/70">{children}</ul>
           ),
+
           ol: ({ children }) => (
             <ol className="my-3 list-decimal space-y-1.5 pl-5 marker:text-primary/70">
               {children}
             </ol>
           ),
+
           li: ({ children }) => <li className="leading-7 text-foreground/90">{children}</li>,
+
           strong: ({ children }) => (
             <strong className="font-semibold text-foreground">{children}</strong>
           ),
+
           a: ({ href, children }) => (
             <a
               href={href}
@@ -253,12 +249,15 @@ function AssistantMarkdown({ content }: { content: string }) {
               {children}
             </a>
           ),
+
           blockquote: ({ children }) => (
             <blockquote className="my-4 border-l-2 border-primary/50 bg-muted/40 py-2 pl-4 pr-3 text-muted-foreground italic">
               {children}
             </blockquote>
           ),
+
           hr: () => <hr className="my-6 border-border" />,
+
           code: ({ className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || "");
             const isBlock = Boolean(match);
@@ -277,18 +276,21 @@ function AssistantMarkdown({ content }: { content: string }) {
               </code>
             );
           },
-          // pre is handled inside code when language-* is present; fallback:
+
           pre: ({ children }) => <>{children}</>,
+
           table: ({ children }) => (
             <div className="my-4 overflow-x-auto rounded-lg border border-border">
               <table className="w-full border-collapse text-left text-sm">{children}</table>
             </div>
           ),
+
           th: ({ children }) => (
             <th className="border-b border-border bg-muted/50 px-3 py-2 font-semibold">
               {children}
             </th>
           ),
+
           td: ({ children }) => <td className="border-b border-border/70 px-3 py-2">{children}</td>,
         }}
       >
@@ -307,7 +309,12 @@ export function GroqChat() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({
+        behavior,
+        block: "end",
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -316,6 +323,7 @@ export function GroqChat() {
 
   function resizeTextarea(textarea: HTMLTextAreaElement) {
     textarea.style.height = "auto";
+
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
   }
 
@@ -326,7 +334,14 @@ export function GroqChat() {
 
   async function sendMessage(value?: string) {
     const message = (value ?? input).trim();
-    if (!message || isLoading) return;
+
+    if (!message || isLoading) {
+      return;
+    }
+
+    // ======================================================
+    // 1. CREATE USER MESSAGE
+    // ======================================================
 
     const userMessage: ChatMessage = {
       id: createMessageId(),
@@ -334,7 +349,17 @@ export function GroqChat() {
       content: message,
     };
 
-    setMessages((current) => [...current, userMessage]);
+    // ======================================================
+    // 2. BUILD FULL CONVERSATION
+    // ======================================================
+
+    const nextMessages = [...messages, userMessage];
+
+    // ======================================================
+    // 3. SHOW USER MESSAGE IMMEDIATELY
+    // ======================================================
+
+    setMessages(nextMessages);
     setInput("");
     setIsLoading(true);
 
@@ -342,18 +367,41 @@ export function GroqChat() {
       textareaRef.current.style.height = "auto";
     }
 
+    scrollToBottom("smooth");
+
     try {
-      const result: AgentActionResult = await agentAction(message);
+      // ====================================================
+      // 4. SEND FULL CONVERSATION TO SERVER
+      // ====================================================
+
+      const conversation: AgentMessage[] = nextMessages.map((item) => ({
+        role: item.role,
+        content: item.content,
+      }));
+
+      const result: AgentActionResult = await agentAction(conversation);
+
+      // ====================================================
+      // 5. HANDLE FAILURE
+      // ====================================================
 
       if (!result.success) {
         toast.error(result.error);
         return;
       }
 
+      // ====================================================
+      // 6. VALIDATE RESPONSE
+      // ====================================================
+
       if (looksLikeHtml(result.response)) {
         toast.error("The agent returned an invalid response.");
         return;
       }
+
+      // ====================================================
+      // 7. ADD ASSISTANT RESPONSE
+      // ====================================================
 
       setMessages((current) => [
         ...current,
@@ -365,9 +413,14 @@ export function GroqChat() {
       ]);
     } catch (error) {
       console.error("[GroqChat] Failed to send message:", error);
+
       toast.error("Something went wrong while talking to the agent.");
     } finally {
       setIsLoading(false);
+
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
     }
   }
 
@@ -377,13 +430,19 @@ export function GroqChat() {
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey) return;
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
     event.preventDefault();
     void sendMessage();
   }
 
   function handleSuggestion(prompt: string) {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
+
     void sendMessage(prompt);
   }
 
@@ -391,26 +450,33 @@ export function GroqChat() {
     setMessages([]);
     setInput("");
     setIsLoading(false);
-    requestAnimationFrame(() => textareaRef.current?.focus());
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[600px] flex-col overflow-hidden bg-background">
       {/* Header */}
+
       <header className="shrink-0 border-b bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl border bg-gradient-to-br from-primary/15 to-muted shadow-sm">
               <Sparkles className="size-4 text-primary" />
             </div>
+
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-semibold tracking-tight">INSIDER Agent</h1>
+
                 <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                   <span className="size-1.5 rounded-full bg-emerald-500" />
                   Online
                 </span>
               </div>
+
               <p className="mt-0.5 text-xs text-muted-foreground">Your AI workspace for INSIDER</p>
             </div>
           </div>
@@ -430,6 +496,7 @@ export function GroqChat() {
       </header>
 
       {/* Messages */}
+
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
           {messages.length === 0 ? (
@@ -439,12 +506,14 @@ export function GroqChat() {
                   <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl border bg-gradient-to-br from-primary/15 to-muted shadow-sm">
                     <Sparkles className="size-6 text-primary" />
                   </div>
+
                   <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                     What are we building?
                   </h2>
+
                   <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-                    Ask the INSIDER Agent to help manage content, improve the app, and plan changes
-                    to the project.
+                    Ask the INSIDER Agent to manage content, improve the app, and perform
+                    administrative actions.
                   </p>
                 </div>
 
@@ -458,6 +527,7 @@ export function GroqChat() {
                       className="group rounded-2xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:bg-muted/40 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
                     >
                       <p className="text-sm font-medium">{suggestion.title}</p>
+
                       <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
                         {suggestion.prompt}
                       </p>
@@ -501,7 +571,6 @@ export function GroqChat() {
                       )}
                     </div>
 
-                    {/* Copy actions */}
                     <div
                       className={
                         isUser
@@ -523,6 +592,7 @@ export function GroqChat() {
                   <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-br from-primary/15 to-muted">
                     <AgentIcon />
                   </div>
+
                   <div className="rounded-2xl rounded-tl-md border bg-card px-4 py-3 shadow-sm">
                     <ThinkingIndicator />
                   </div>
@@ -536,6 +606,7 @@ export function GroqChat() {
       </div>
 
       {/* Composer */}
+
       <div className="shrink-0 border-t bg-background/90 px-4 pb-4 pt-3 backdrop-blur-xl sm:px-6">
         <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl">
           <div className="overflow-hidden rounded-2xl border bg-card shadow-lg shadow-black/5 ring-1 ring-black/5 dark:ring-white/5">
@@ -562,7 +633,11 @@ export function GroqChat() {
                 aria-label="Send message"
                 className="ml-auto flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
               >
-                {isLoading ? <SpinnerIcon /> : <SendIcon />}
+                {isLoading ? (
+                  <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <Send className="size-4" />
+                )}
               </button>
             </div>
           </div>

@@ -1,17 +1,13 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { OpenAI } from "openai";
 import { revalidatePath, revalidateTag } from "next/cache";
 
-import { OpenAI } from "openai";
-
 import { CACHE_TAGS } from "@/lib/cache-keys";
-
 import { pingIndexNow } from "@/lib/index-now";
-import { getOrCreateArticleUser } from "@/app/actions/users/get-or-create-article-user-action";
-import { CreateBlogInput, CreateBlogResult } from "@/schemas/blog-schema";
 import prisma from "@/lib/prisma-client";
+import { CreateBlogInput, CreateBlogResult } from "@/schemas/blog-schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,7 +20,9 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 // ============================================================
 
 function extractTextFromContent(content: any): string {
-  if (!content?.blocks) return "";
+  if (!content?.blocks) {
+    return "";
+  }
 
   return content.blocks
     .map((block: any) => {
@@ -67,17 +65,148 @@ function estimateReadingTime(content: any): number {
   return Math.max(1, Math.ceil(words / 200));
 }
 
-/**
- * Builds the canonical public URL for a blog.
- *
- * Example:
- *
- * https://www.alentah.com/ai/generative-ai/my-blog-slug
- */
+// ============================================================
+// BLOG URL
+// ============================================================
+
 function buildBlogUrl(categorySlug: string, subcategorySlug: string, blogSlug: string): string {
   const baseUrl = BASE_URL.replace(/\/+$/, "");
 
   return `${baseUrl}/${categorySlug}/${subcategorySlug}/${blogSlug}`;
+}
+
+// ============================================================
+// LOCAL USER SYNCHRONIZATION
+// ============================================================
+//
+// IMPORTANT:
+//
+// Clerk is the authentication system.
+//
+// Prisma User is only the local application user record.
+//
+// There is NO:
+// - ADMIN_EMAILS
+// - ADMIN role check
+// - authorization check
+// - active-account authorization
+//
+// Flow:
+//
+// Clerk user
+//     ↓
+// Get Clerk profile
+//     ↓
+// Find Prisma user by clerkId
+//     ↓
+// If not found, find by email
+//     ↓
+// Existing user → update/link Clerk ID
+// New user      → create
+//
+// This prevents:
+// User_email_key unique constraint errors.
+// ============================================================
+
+async function getOrCreateLocalUser() {
+  const clerkUser = await currentUser();
+
+  if (!clerkUser) {
+    throw new Error("Unauthorized.");
+  }
+
+  const clerkId = clerkUser.id;
+
+  const primaryEmail =
+    clerkUser.emailAddresses.find((email) => email.id === clerkUser.primaryEmailAddressId)
+      ?.emailAddress ??
+    clerkUser.emailAddresses[0]?.emailAddress ??
+    null;
+
+  const normalizedEmail = primaryEmail?.trim().toLowerCase() || null;
+
+  // ==========================================================
+  // 1. FIND BY CLERK ID
+  // ==========================================================
+
+  const existingByClerkId = await prisma.user.findUnique({
+    where: {
+      clerkId,
+    },
+  });
+
+  if (existingByClerkId) {
+    return prisma.user.update({
+      where: {
+        id: existingByClerkId.id,
+      },
+      data: {
+        email: primaryEmail,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+      },
+    });
+  }
+
+  // ==========================================================
+  // 2. FIND BY EMAIL
+  // ==========================================================
+  //
+  // This is the important fix for:
+  //
+  // User_email_key
+  //
+  // If the Prisma user already exists but was created
+  // without this Clerk ID, link the existing user instead
+  // of trying to create another user with the same email.
+  //
+  // ==========================================================
+
+  if (normalizedEmail) {
+    const existingByEmail = await prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
+    });
+
+    if (existingByEmail) {
+      return prisma.user.update({
+        where: {
+          id: existingByEmail.id,
+        },
+        data: {
+          clerkId,
+          email: primaryEmail,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          imageUrl: clerkUser.imageUrl,
+        },
+      });
+    }
+  }
+
+  // ==========================================================
+  // 3. CREATE NEW LOCAL USER
+  // ==========================================================
+
+  return prisma.user.create({
+    data: {
+      clerkId,
+      email: primaryEmail,
+      firstName: clerkUser.firstName,
+      lastName: clerkUser.lastName,
+      imageUrl: clerkUser.imageUrl,
+
+      // No authorization decision is made here.
+      // This is only the default local application role
+      // required by the Prisma schema, if applicable.
+      role: "USER",
+
+      isActive: true,
+      isVerified: false,
+    },
+  });
 }
 
 // ============================================================
@@ -181,32 +310,37 @@ ${contentText.slice(0, 3500)}`,
 }
 
 // ============================================================
-// CREATE BLOG ACTION
+// CREATE BLOG
+// ============================================================
+//
+// Any authenticated Clerk user can create a blog.
+//
+// There is NO ADMIN authorization check here.
 // ============================================================
 
 export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlogResult> {
   try {
     // ========================================================
-    // AUTHENTICATION
+    // 1. CLERK AUTHENTICATION
     // ========================================================
 
-    const { userId: clerkId } = await auth();
+    const { userId } = await auth();
 
-    if (!clerkId) {
+    if (!userId) {
       return {
         success: false,
-        error: "Unauthorized.",
+        error: "Please sign in to create a blog.",
       };
     }
 
     // ========================================================
-    // FIND USER
+    // 2. GET / CREATE / SYNC LOCAL USER
     // ========================================================
 
-    const user = await getOrCreateArticleUser();
+    const user = await getOrCreateLocalUser();
 
     // ========================================================
-    // VALIDATION
+    // 3. VALIDATION
     // ========================================================
 
     const title = data.title?.trim();
@@ -255,14 +389,13 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     }
 
     // ========================================================
-    // DUPLICATE BLOG SLUG CHECK
+    // 4. DUPLICATE BLOG SLUG
     // ========================================================
 
     const existing = await prisma.blog.findUnique({
       where: {
         slug,
       },
-
       select: {
         id: true,
       },
@@ -276,29 +409,24 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     }
 
     // ========================================================
-    // VALIDATE CATEGORY + SUBCATEGORY
+    // 5. VALIDATE CATEGORY + SUBCATEGORY
     // ========================================================
 
     const subcategory = await prisma.subcategory.findFirst({
       where: {
         id: data.subcategoryId,
-
         categoryId: data.categoryId,
-
         isActive: true,
       },
 
       select: {
         id: true,
-
         slug: true,
 
         category: {
           select: {
             id: true,
-
             slug: true,
-
             isActive: true,
           },
         },
@@ -317,7 +445,7 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     const subcategorySlug = subcategory.slug;
 
     // ========================================================
-    // CONTENT + SEO
+    // 6. CONTENT + SEO
     // ========================================================
 
     const contentText = extractTextFromContent(data.content);
@@ -327,19 +455,19 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     const readingTime = estimateReadingTime(data.content);
 
     // ========================================================
-    // CANONICAL URL
+    // 7. CANONICAL URL
     // ========================================================
 
     const canonicalUrl = buildBlogUrl(categorySlug, subcategorySlug, slug);
 
     // ========================================================
-    // PUBLIC BLOG PATH
+    // 8. PUBLIC BLOG PATH
     // ========================================================
 
     const blogPath = `/${categorySlug}/${subcategorySlug}/${slug}`;
 
     // ========================================================
-    // STATUS
+    // 9. STATUS
     // ========================================================
 
     const status = data.status || "DRAFT";
@@ -347,7 +475,7 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     const isPublished = status === "PUBLISHED";
 
     // ========================================================
-    // CREATE BLOG
+    // 10. CREATE BLOG
     // ========================================================
 
     const blog = await prisma.blog.create({
@@ -419,66 +547,44 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
     });
 
     // ========================================================
-    // CACHE REVALIDATION
+    // 11. DASHBOARD CACHE
     // ========================================================
-
-    // --------------------------------------------------------
-    // DASHBOARD
-    // --------------------------------------------------------
 
     revalidatePath("/dashboard/blogs");
 
-    // --------------------------------------------------------
-    // PUBLIC CONTENT
-    // --------------------------------------------------------
+    // ========================================================
+    // 12. PUBLIC CACHE
+    // ========================================================
 
     if (isPublished) {
-      // ------------------------------------------------------
-      // HOMEPAGE
-      // ------------------------------------------------------
-
       revalidatePath("/");
 
       revalidateTag(CACHE_TAGS.home, "max");
 
-      // ------------------------------------------------------
-      // CATEGORY PAGE
-      // ------------------------------------------------------
-
       revalidateTag(CACHE_TAGS.categoryPageBlogs(categorySlug), "max");
-
-      // ------------------------------------------------------
-      // SUBCATEGORY PAGE
-      // ------------------------------------------------------
 
       revalidateTag(CACHE_TAGS.subcategoryPageBlogs(subcategorySlug), "max");
 
-      // ------------------------------------------------------
-      // INDIVIDUAL BLOG
-      // ------------------------------------------------------
-
       revalidateTag(CACHE_TAGS.blog(blog.slug), "max");
-
-      // ------------------------------------------------------
-      // EXACT BLOG PATH
-      // ------------------------------------------------------
 
       revalidatePath(blogPath);
 
-      // ------------------------------------------------------
+      // ======================================================
       // INDEXNOW
-      //
-      // Notify IndexNow-compatible search engines
-      // that this new public URL is available.
-      //
-      // This does NOT directly submit the URL to Google.
-      // ------------------------------------------------------
+      // ======================================================
 
-      await pingIndexNow(blogPath);
+      try {
+        await pingIndexNow(blogPath);
+      } catch (indexNowError) {
+        // IndexNow must never make a successful
+        // blog creation appear to have failed.
+
+        console.error("[createBlog] IndexNow notification failed:", indexNowError);
+      }
     }
 
     // ========================================================
-    // RESPONSE
+    // 13. SUCCESS
     // ========================================================
 
     return {
@@ -529,7 +635,6 @@ export async function createBlogAction(data: CreateBlogInput): Promise<CreateBlo
 
     return {
       success: false,
-
       error: error instanceof Error ? error.message : "Failed to create blog",
     };
   }
