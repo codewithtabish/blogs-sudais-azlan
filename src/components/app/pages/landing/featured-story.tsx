@@ -8,7 +8,7 @@ import { Reveal } from "./reveal";
 import type { HomeBlogListItem } from "@/app/actions/(blog)/get-home-blogs-action";
 
 export function FeaturedStory({ blog }: { blog: HomeBlogListItem }) {
-  const href = `/articles/${blog.slug}`;
+  const href = `/${blog.category.slug}/${blog.subcategory.slug}/${blog.slug}`;
   const imageUrl = getArticleImageUrl(blog.bannerImage);
   const alt = blog.bannerImageAlt || blog.title;
 
