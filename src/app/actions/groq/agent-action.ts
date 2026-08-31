@@ -3124,6 +3124,10 @@ The **${updatedValues.name}** editor was updated successfully.
     // 22. APPLY THEME
     // ========================================================
 
+    // ========================================================
+    // 22. APPLY THEME
+    // ========================================================
+
     if (toolName === "apply_theme") {
       const rawTheme = toSafeString(toolArguments.theme).trim();
 
@@ -3161,6 +3165,31 @@ The **${updatedValues.name}** editor was updated successfully.
       // remember last applied theme for this process
       lastAppliedTheme = themeKey;
 
+      // Production message (when running on Vercel)
+      if (result.mode === "production") {
+        return {
+          success: true,
+          response: `## Theme application started
+
+The **${result.name}** theme has been queued for deployment.
+
+- **Theme key:** \`${result.theme}\`
+- **Name:** ${result.name}
+- **Source:** \`${result.url}\`
+
+### What happens next
+
+1. GitHub is now applying the theme and creating a new commit  
+2. Vercel will automatically start a new build  
+3. This usually takes **1–2 minutes**
+
+Please wait about a minute, then **refresh the page** to see the new theme.
+
+You don’t need to do anything else — just wait for the build to finish.`,
+        };
+      }
+
+      // Local success message
       return {
         success: true,
         response: `## Theme applied successfully
@@ -3171,7 +3200,7 @@ The **${result.name}** theme has been applied.
 - **Name:** ${result.name}
 - **Source:** \`${result.url}\`
 
-The theme is now active. You may need to refresh the page to see the visual changes.`,
+The theme is now active. Please **refresh the page** to see the visual changes.`,
       };
     }
 
