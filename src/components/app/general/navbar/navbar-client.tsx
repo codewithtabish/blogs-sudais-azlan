@@ -2,7 +2,7 @@
 
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 
-import { LayoutDashboard, PenLine } from "lucide-react";
+import { LayoutDashboard, WashingMachineIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -89,15 +89,20 @@ export function NavbarClient({ categories, isAdmin }: NavbarClientProps) {
                   },
                 }}
               >
-                {isAdmin && (
+                {isAdmin ? (
                   <UserButton.MenuItems>
                     <UserButton.Link
                       label="Dashboard"
                       href="/dashboard"
                       labelIcon={<LayoutDashboard className="h-4 w-4" />}
                     />
+                    <UserButton.Link
+                      label="ADMIN AGENT"
+                      href="/agent"
+                      labelIcon={<WashingMachineIcon className="h-4 w-4" />}
+                    />
                   </UserButton.MenuItems>
-                )}
+                ) : null}
               </UserButton>
             </Show>
           </div>
