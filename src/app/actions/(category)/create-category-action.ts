@@ -25,8 +25,6 @@ type CreateCategoryResult =
 // ============================================================
 // CREATE CATEGORY
 // ============================================================
-// An authenticated Clerk user may create a category.
-// ============================================================
 
 export async function createCategoryAction(formData: unknown): Promise<CreateCategoryResult> {
   try {
@@ -44,7 +42,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     }
 
     // ========================================================
-    // 2. VALIDATE FORM DATA
+    // 4. VALIDATE CATEGORY DATA
     // ========================================================
 
     const parsed = categorySchema.safeParse(formData);
@@ -61,7 +59,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     const { name, slug, description, isActive, sortOrder } = parsed.data;
 
     // ========================================================
-    // 12. NORMALIZE CATEGORY DATA
+    // 5. NORMALIZE CATEGORY DATA
     // ========================================================
 
     const normalizedName = name.trim();
@@ -71,7 +69,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     const normalizedDescription = description?.trim() || null;
 
     // ========================================================
-    // 13. CHECK DUPLICATE CATEGORY SLUG
+    // 6. CHECK DUPLICATE CATEGORY SLUG
     // ========================================================
 
     const existingCategory = await prisma.category.findUnique({
@@ -88,7 +86,7 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     }
 
     // ========================================================
-    // 14. CREATE CATEGORY
+    // 7. CREATE CATEGORY
     // ========================================================
 
     const category = await prisma.category.create({
@@ -101,15 +99,8 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
       },
     });
 
-    console.log("[createCategory] Category created:", {
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      createdByClerkId: userId,
-    });
-
     // ========================================================
-    // 15. REVALIDATE CATEGORY CACHE
+    // 8. REVALIDATE CATEGORY CACHE
     // ========================================================
 
     revalidateTag(CACHE_TAGS.categories, "max");
@@ -121,15 +112,8 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
     revalidatePath("/dashboard/category");
 
     // ========================================================
-    // 16. INDEXNOW
+    // 9. INDEXNOW
     // ========================================================
-    //
-    // pingIndexNow() handles:
-    //
-    // https://insider.sudaisazlan.com
-    //
-    // We only provide the relative category path.
-    //
 
     if (isActive) {
       try {
@@ -137,15 +121,13 @@ export async function createCategoryAction(formData: unknown): Promise<CreateCat
 
         console.log("[createCategory] IndexNow notification sent:", `/${category.slug}`);
       } catch (indexNowError) {
-        // IndexNow failure must not make the category
-        // creation operation fail.
-
+        // IndexNow failure must not make category creation fail.
         console.error("[createCategory] IndexNow notification failed:", indexNowError);
       }
     }
 
     // ========================================================
-    // 17. SUCCESS
+    // 10. SUCCESS
     // ========================================================
 
     return {

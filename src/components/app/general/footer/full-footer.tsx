@@ -276,13 +276,13 @@ export default async function InsiderFooter() {
                 <p className="mt-7 max-w-[540px] text-[15px] leading-7 text-muted-foreground">
                   INSIDER is an independent editorial publication by{" "}
                   <span className="font-medium text-foreground">CodeWithTabish</span>, exploring
-                  technology, AI, programming, ideas, trends, and practical knowledge.
+                  technology, AI, programming, ideas, culture, trends, and practical knowledge.
                 </p>
 
                 <p className="mt-3 max-w-[540px] text-[15px] leading-7 text-muted-foreground">
-                  We make the rapidly changing world of technology easier to understand, explore,
-                  and navigate — bringing together useful insights, thoughtful analysis, and
-                  practical knowledge for curious minds.
+                  We make the rapidly changing world easier to understand, explore, and navigate —
+                  bringing together useful insights, thoughtful analysis, and practical knowledge
+                  for curious minds.
                 </p>
 
                 {/* Company links */}

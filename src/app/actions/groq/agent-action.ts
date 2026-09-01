@@ -520,11 +520,20 @@ When the user asks to:
 
 they want a new INSIDER category.
 
-If the category name is missing, ask:
+The user is only required to provide the category NAME. Everything else can be filled in automatically:
+
+- If the category name is missing, ask:
 
 ## New Category
 
 What should the category be called?
+
+- Once you have the name, DO NOT ask for slug, description, or active status separately. Fill these in automatically:
+  - Slug: always generated automatically from the name (never ask the user for a slug).
+  - Description: automatically write a natural, concise description of 2–3 sentences based on the category name and what such a category would typically cover on an editorial platform. Only use a user-provided description instead if the user explicitly gives one.
+  - Active status: default to isActive = true unless the user explicitly says the category should be inactive/disabled.
+
+- If the user provides their own description and/or active status, use exactly what they provided instead of generating it.
 
 When creating a category generate only:
 
@@ -533,9 +542,7 @@ When creating a category generate only:
 - description
 - isActive
 
-NEVER generate sortOrder.
-
-The server controls category sort order.
+NEVER generate sortOrder yourself. The server controls category sort order and assigns the real next sort number. After creation, the real assigned sort order will be shown to the user automatically — do not guess or state a sort number in your own reply.
 
 ==================================================
 SUBCATEGORY CREATION
@@ -551,10 +558,12 @@ When the user asks to:
 
 they want a new INSIDER subcategory.
 
-Required:
+The user is only required to provide two things:
 
-1. Existing parent category
-2. New subcategory name
+1. The existing parent category
+2. The new subcategory NAME
+
+Everything else can be filled in automatically:
 
 If parent category is missing:
 
@@ -564,6 +573,14 @@ If parent category is missing:
 If subcategory name is missing:
 
 - ask only for the subcategory name
+
+Once you have both the parent category and the subcategory name, DO NOT ask for slug, description, or active status separately. Fill these in automatically:
+
+- Slug: always generated automatically from the subcategory name (never ask the user for a slug).
+- Description: automatically write a natural, concise description of 2–3 sentences based on the subcategory name (and its parent category) describing what content it would typically cover. Only use a user-provided description instead if the user explicitly gives one.
+- Active status: default to isActive = true unless the user explicitly says the subcategory should be inactive/disabled.
+
+If the user provides their own description and/or active status, use exactly what they provided instead of generating it.
 
 Before creating:
 
@@ -579,9 +596,7 @@ Generate:
 - description
 - isActive
 
-NEVER generate sortOrder.
-
-The server controls subcategory sort order.
+NEVER generate sortOrder yourself. The server controls subcategory sort order and assigns the real next sort number. After creation, the real assigned sort order will be shown to the user automatically — do not guess or state a sort number in your own reply.
 
 ==================================================
 CATEGORY DELETION
@@ -1633,7 +1648,8 @@ const AGENT_TOOLS = [
     type: "function",
     function: {
       name: "create_category",
-      description: "Create a new INSIDER category. Never provide sortOrder.",
+      description:
+        "Create a new INSIDER category. The user only needs to provide the name — you must generate a natural 2-3 sentence description yourself unless the user gave one, and default isActive to true unless told otherwise. Never provide sortOrder; the server assigns it and the real value is shown to the user automatically after creation.",
       parameters: {
         type: "object",
         properties: {
@@ -1645,6 +1661,8 @@ const AGENT_TOOLS = [
           },
           description: {
             type: "string",
+            description:
+              "A natural 2-3 sentence description. Auto-generate this from the category name if the user did not provide one.",
           },
           isActive: {
             type: "boolean",
@@ -1660,7 +1678,8 @@ const AGENT_TOOLS = [
     type: "function",
     function: {
       name: "create_subcategory",
-      description: "Create a new subcategory under an existing category. Never provide sortOrder.",
+      description:
+        "Create a new subcategory under an existing category. The user only needs to provide the parent category and the subcategory name — you must generate a natural 2-3 sentence description yourself unless the user gave one, and default isActive to true unless told otherwise. Never provide sortOrder; the server assigns it and the real value is shown to the user automatically after creation.",
       parameters: {
         type: "object",
         properties: {
@@ -1675,6 +1694,8 @@ const AGENT_TOOLS = [
           },
           description: {
             type: "string",
+            description:
+              "A natural 2-3 sentence description. Auto-generate this from the subcategory name if the user did not provide one.",
           },
           isActive: {
             type: "boolean",
@@ -2358,11 +2379,23 @@ ${response.replace(/###?\s*📸?\s*Profile picture[\s\S]*?(?=###|$)/i, "").trim(
         };
       }
 
+      // createCategoryAction's schema REQUIRES sortOrder as a number — it
+      // does not assign one itself. Compute the next real sort order from
+      // the current database snapshot (max existing sortOrder + 1) rather
+      // than letting the model invent it or omitting it entirely (which
+      // previously caused a "Expected number, received nan" validation
+      // error).
+      const nextCategorySortOrder =
+        categories.length > 0
+          ? Math.max(...categories.map((category) => category.sortOrder)) + 1
+          : 0;
+
       const categoryResult = await createCategoryAction({
         name,
         slug,
         description,
         isActive,
+        sortOrder: nextCategorySortOrder,
       });
 
       if (!categoryResult.success) {
@@ -2379,10 +2412,12 @@ ${response.replace(/###?\s*📸?\s*Profile picture[\s\S]*?(?=###|$)/i, "").trim(
 The **${name}** category was created successfully.
 
 - **Slug:** \`${slug}\`
+- **Description:** ${description}
 - **Status:** ${isActive ? "Active" : "Inactive"}
+- **Sort order:** ${nextCategorySortOrder}
 - **Category ID:** \`${categoryResult.categoryId}\`
 
-The server assigned the category sort order.`,
+The sort order was assigned automatically based on the current category list.`,
       };
     }
 
@@ -2445,12 +2480,25 @@ The server assigned the category sort order.`,
         };
       }
 
+      // createSubcategoryAction's schema REQUIRES sortOrder as a number —
+      // it does not assign one itself. Compute the next real sort order
+      // from the parent category's current subcategories (max existing
+      // sortOrder + 1) rather than letting the model invent it or
+      // omitting it entirely (which previously caused a
+      // "Expected number, received nan" validation error).
+      const nextSubcategorySortOrder =
+        parentCategory.subcategories.length > 0
+          ? Math.max(...parentCategory.subcategories.map((subcategory) => subcategory.sortOrder)) +
+            1
+          : 0;
+
       const subcategoryResult = await createSubcategoryAction({
         categoryId: parentCategory.id,
         name,
         slug,
         description,
         isActive,
+        sortOrder: nextSubcategorySortOrder,
       });
 
       if (!subcategoryResult.success) {
@@ -2467,11 +2515,13 @@ The server assigned the category sort order.`,
 The **${name}** subcategory was created successfully under **${parentCategory.name}**.
 
 - **Slug:** \`${slug}\`
+- **Description:** ${description}
 - **Parent category:** ${parentCategory.name}
 - **Status:** ${isActive ? "Active" : "Inactive"}
+- **Sort order:** ${nextSubcategorySortOrder}
 - **Subcategory ID:** \`${subcategoryResult.subcategoryId}\`
 
-The server assigned the subcategory sort order.`,
+The sort order was assigned automatically based on the current subcategory list.`,
       };
     }
 
@@ -3119,10 +3169,6 @@ The **${updatedValues.name}** editor was updated successfully.
         response: formatThemeList(lastAppliedTheme),
       };
     }
-
-    // ========================================================
-    // 22. APPLY THEME
-    // ========================================================
 
     // ========================================================
     // 22. APPLY THEME

@@ -1,8 +1,8 @@
 "use client";
 
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 
-import { LayoutDashboard, WashingMachineIcon } from "lucide-react";
+import { Bot, LayoutDashboard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -27,9 +27,17 @@ interface NavbarClientProps {
  * - This component does NOT query Prisma.
  * - This component does NOT create/sync local users.
  * - Authentication UI is handled by Clerk.
- * - Dashboard links are shown to authenticated Clerk users.
+ * - Dashboard & Agent links are shown ONLY to users whose Clerk
+ *   publicMetadata.role === "ADMIN" (synced by the Clerk webhook).
+ *   Being signed in is NOT enough on its own.
  */
 export function NavbarClient({ categories, isAuthenticated }: NavbarClientProps) {
+  // useUser() reflects Clerk's live publicMetadata, the same field the
+  // /api/webhooks/clerk route and proxy.ts middleware check server-side.
+  const { user } = useUser();
+  const role = (user?.publicMetadata as { role?: string } | undefined)?.role;
+  const isAdmin = role === "ADMIN";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:h-[70px] lg:px-8">
@@ -88,7 +96,7 @@ export function NavbarClient({ categories, isAuthenticated }: NavbarClientProps)
                   },
                 }}
               >
-                {isAuthenticated ? (
+                {isAdmin ? (
                   <UserButton.MenuItems>
                     <UserButton.Link
                       label="Dashboard"
@@ -96,9 +104,9 @@ export function NavbarClient({ categories, isAuthenticated }: NavbarClientProps)
                       labelIcon={<LayoutDashboard className="h-4 w-4" />}
                     />
                     <UserButton.Link
-                      label="AGENT"
+                      label="Agent"
                       href="/agent"
-                      labelIcon={<WashingMachineIcon className="h-4 w-4" />}
+                      labelIcon={<Bot className="h-4 w-4" />}
                     />
                   </UserButton.MenuItems>
                 ) : null}
@@ -110,7 +118,11 @@ export function NavbarClient({ categories, isAuthenticated }: NavbarClientProps)
               MOBILE NAVIGATION
           ==================================================== */}
 
-          <NavbarMobileNav categories={categories} isAuthenticated={isAuthenticated} />
+          <NavbarMobileNav
+            categories={categories}
+            isAuthenticated={isAuthenticated}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
     </header>

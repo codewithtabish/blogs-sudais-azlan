@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { Bot, ChevronDown, LayoutDashboard, Menu, X } from "lucide-react";
 import {
   Sheet,
   SheetClose,
@@ -23,6 +23,12 @@ import type { CategoryListItem } from "@/app/actions/(category)/get-all-categori
 interface NavbarMobileNavProps {
   categories: CategoryListItem[];
   isAuthenticated: boolean;
+  /**
+   * True only when the signed-in user's Clerk publicMetadata.role === "ADMIN"
+   * (synced by the Clerk webhook, checked server-side in proxy.ts).
+   * Being signed in is NOT enough to see Dashboard/Agent links.
+   */
+  isAdmin: boolean;
 }
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -30,7 +36,7 @@ function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function NavbarMobileNav({ categories, isAuthenticated }: NavbarMobileNavProps) {
+export function NavbarMobileNav({ categories, isAuthenticated, isAdmin }: NavbarMobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const close = () => setOpen(false);
@@ -72,7 +78,7 @@ export function NavbarMobileNav({ categories, isAuthenticated }: NavbarMobileNav
               />
             ))}
 
-            {isAuthenticated && (
+            {isAuthenticated && isAdmin && (
               <>
                 <Separator className="my-4 bg-border/60" />
                 <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -81,6 +87,7 @@ export function NavbarMobileNav({ categories, isAuthenticated }: NavbarMobileNav
                 <MobileLink
                   label="Dashboard"
                   href="/dashboard"
+                  icon={<LayoutDashboard className="h-4 w-4" />}
                   active={isActivePath(pathname, "/dashboard")}
                   onNavigate={close}
                 />
@@ -88,6 +95,13 @@ export function NavbarMobileNav({ categories, isAuthenticated }: NavbarMobileNav
                   label="Write Article"
                   href="/dashboard/write"
                   active={isActivePath(pathname, "/dashboard/write")}
+                  onNavigate={close}
+                />
+                <MobileLink
+                  label="Agent"
+                  href="/agent"
+                  icon={<Bot className="h-4 w-4" />}
+                  active={isActivePath(pathname, "/agent")}
                   onNavigate={close}
                 />
               </>
@@ -121,21 +135,24 @@ function MobileLink({
   href,
   active,
   onNavigate,
+  icon,
 }: {
   label: string;
   href: string;
   active: boolean;
   onNavigate: () => void;
+  icon?: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        "rounded-xl px-3 py-2.5 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground",
+        "flex items-center gap-2 rounded-xl px-3 py-2.5 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground",
         active && "bg-muted text-foreground",
       )}
     >
+      {icon}
       {label}
     </Link>
   );

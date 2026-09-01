@@ -578,7 +578,7 @@ export async function updateBlogAction(data: UpdateBlogInput): Promise<UpdateBlo
     // ========================================================
 
     revalidatePath("/dashboard/blogs");
-
+    revalidateTag(CACHE_TAGS.home, "max");
     // ========================================================
     // 16. HOMEPAGE CACHE
     // ========================================================
